@@ -163,7 +163,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }, isVertical);
 
       if (editOcrText) {
-        editOcrText.value = ocrResult.rawText || '';
+        editOcrText.value = ocrResult.displayText || ocrResult.rawText || '';
       }
 
       // Match against database

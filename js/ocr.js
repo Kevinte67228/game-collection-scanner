@@ -163,11 +163,22 @@ class OcrEngine {
       console.warn('[OcrEngine] Failed to parse Gemini response as JSON:', replyText);
     }
 
-    const combinedText = `${parsed.catalog || ''} ${parsed.title_jp || ''} ${parsed.title_en || ''} ${replyText}`;
+    // 組合供 matcher 使用的純淨文字（catalog + 日文名 + 英文名）
+    const parts = [parsed.catalog, parsed.title_jp, parsed.title_en].filter(Boolean);
+    const combinedText = parts.join(' ');
+
+    // 供辨識文字框顯示的可讀文字
+    const displayText = [
+      parsed.title_jp ? `標題：${parsed.title_jp}` : '',
+      parsed.title_en ? `英文：${parsed.title_en}` : '',
+      parsed.catalog  ? `編號：${parsed.catalog}`  : '',
+      parsed.platform ? `平台：${parsed.platform}` : ''
+    ].filter(Boolean).join('\n') || replyText;
 
     return {
       engine: 'gemini',
       rawText: combinedText,
+      displayText: displayText,
       confidence: 0.98,
       parsed: parsed
     };
