@@ -21,38 +21,48 @@ class OcrEngine {
   }
 
   /**
-   * 初始化 Tesseract.js Worker (使用英數字+日文模式)
+   * 初始化 Tesseract.js Worker (支援橫排與直排文字)
    */
-  async initTesseract(onProgress) {
+  async initTesseract(onProgress, isVertical = false) {
     if (this.isWorkerReady && this.tesseractWorker) return;
     if (typeof Tesseract === 'undefined') {
       throw new Error('Tesseract.js 未載入');
     }
 
     if (onProgress) onProgress('正在載入離線 OCR 核心...');
-    this.tesseractWorker = await Tesseract.createWorker('eng+jpn', 1, {
-      logger: m => {
-        if (onProgress && m.status === 'recognizing text') {
-          onProgress(`離線辨識中 ${Math.round(m.progress * 100)}%`);
+    // 同時載入英文與日文 (含直排支援)
+    const langs = isVertical ? 'eng+jpn_vert' : 'eng+jpn';
+    try {
+      this.tesseractWorker = await Tesseract.createWorker(langs, 1, {
+        logger: m => {
+          if (onProgress && m.status === 'recognizing text') {
+            onProgress(`離線辨識中 ${Math.round(m.progress * 100)}%`);
+          }
         }
-      }
-    });
+      });
+    } catch (e) {
+      // 若下載 jpn_vert 失敗，回退至 eng+jpn
+      console.warn('[OcrEngine] Fallback to eng+jpn:', e);
+      this.tesseractWorker = await Tesseract.createWorker('eng+jpn', 1);
+    }
 
-    // 設定辨識參數以兼顧編號與字體
+    // 設定 PSM: 5 為直書單塊文字 (Vertical block)，6 為橫書單塊文字 (Single block)
     await this.tesseractWorker.setParameters({
-      tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK
+      tessedit_pageseg_mode: isVertical ? '5' : '6'
     });
 
     this.isWorkerReady = true;
-    console.log('[OcrEngine] Tesseract Worker ready.');
+    this.currentIsVertical = isVertical;
+    console.log(`[OcrEngine] Tesseract Worker ready (Vertical: ${isVertical}).`);
   }
 
   /**
    * 執行 OCR 辨識
    * @param {string} imageDataUrl - base64 JPEG
    * @param {function} onProgress - 進度回報回調函數
+   * @param {boolean} isVertical - 是否為垂直側標模式
    */
-  async recognize(imageDataUrl, onProgress) {
+  async recognize(imageDataUrl, onProgress, isVertical = false) {
     // 若設定使用 Gemini 且有 API Key，優先使用 Gemini Flash
     if (this.preferredEngine === 'gemini' && this.geminiApiKey) {
       try {
@@ -66,10 +76,15 @@ class OcrEngine {
 
     // 離線 Tesseract 辨識
     if (!this.isWorkerReady) {
-      await this.initTesseract(onProgress);
+      await this.initTesseract(onProgress, isVertical);
+    } else {
+      // 切換橫向/直向 PSM 模式
+      await this.tesseractWorker.setParameters({
+        tessedit_pageseg_mode: isVertical ? '5' : '6'
+      });
     }
 
-    if (onProgress) onProgress('離線辨識書背文字與編號...');
+    if (onProgress) onProgress(isVertical ? '直排側標文字辨識中...' : '離線辨識書背文字與編號...');
     const result = await this.tesseractWorker.recognize(imageDataUrl);
     const rawText = result.data.text || '';
 

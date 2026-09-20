@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const fileInput = document.getElementById('file-input');
   const btnTorch = document.getElementById('btn-torch');
   const btnOrient = document.getElementById('btn-orient');
+  const btnForceRefresh = document.getElementById('btn-force-refresh');
   const btnSound = document.getElementById('btn-sound');
   const btnSettings = document.getElementById('btn-settings');
   const dbBadge = document.getElementById('db-badge');
@@ -156,9 +157,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     try {
+      const isVertical = (scanner.orientation === 'vertical');
       const ocrResult = await ocr.recognize(dataUrl, (msg) => {
         showScanStatus(msg);
-      });
+      }, isVertical);
 
       if (editOcrText) {
         editOcrText.value = ocrResult.rawText || '';
@@ -305,6 +307,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     const newMode = scanner.orientation === 'horizontal' ? 'vertical' : 'horizontal';
     scanner.setOrientation(newMode);
   });
+
+  // Force Refresh & Clear Cache button
+  if (btnForceRefresh) {
+    btnForceRefresh.addEventListener('click', async () => {
+      showScanStatus('正在清除快取並更新至最新版...');
+      try {
+        if ('serviceWorker' in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          for (const r of regs) await r.unregister();
+        }
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          for (const k of keys) await caches.delete(k);
+        }
+      } catch (e) {
+        console.warn('Cache clear error:', e);
+      }
+      window.location.reload(true);
+    });
+  }
 
   // Sound toggle
   btnSound.addEventListener('click', () => {

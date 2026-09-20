@@ -1,4 +1,4 @@
-const CACHE_NAME = 'game-scanner-v1.0.1';
+const CACHE_NAME = 'game-scanner-v1.0.2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -18,11 +18,12 @@ const ASSETS_TO_CACHE = [
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('[ServiceWorker] Pre-caching offline assets');
       return cache.addAll(ASSETS_TO_CACHE);
-    }).then(() => self.skipWaiting())
+    })
   );
 });
 
@@ -42,14 +43,37 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Navigation or asset request
+  // 優先網路 (Network-First) 策略處理 HTML、JS、CSS，保證連網時每次獲取最新修正版
+  const isCodeOrHtml = event.request.mode === 'navigate' || 
+                       event.request.destination === 'script' || 
+                       event.request.destination === 'style' ||
+                       event.request.url.endsWith('.html') ||
+                       event.request.url.endsWith('.js') ||
+                       event.request.url.endsWith('.css');
+
+  if (isCodeOrHtml) {
+    event.respondWith(
+      fetch(event.request).then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const clone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
+        return networkResponse;
+      }).catch(() => {
+        // 離線時降級回快取
+        return caches.match(event.request).then((cached) => cached || caches.match('./index.html'));
+      })
+    );
+    return;
+  }
+
+  // 大檔案（圖示、games.json、OCR模型）使用 Cache-First 節省流量與秒開
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
         return cachedResponse;
       }
       return fetch(event.request).then((response) => {
-        // Cache dynamic runtime responses (like tesseract traineddata or worker scripts)
         if (!response || response.status !== 200 || response.type !== 'basic') {
           return response;
         }
@@ -58,11 +82,6 @@ self.addEventListener('fetch', (event) => {
           cache.put(event.request, responseToCache);
         });
         return response;
-      }).catch(() => {
-        // Offline fallback
-        if (event.request.mode === 'navigate') {
-          return caches.match('./index.html');
-        }
       });
     })
   );
