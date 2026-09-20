@@ -107,20 +107,12 @@ class OcrEngine {
     const base64Data = imageDataUrl.replace(/^data:image\/[a-z]+;base64,/, '');
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.geminiApiKey}`;
 
-    const prompt = `這是復古或現代遊戲盒的「側標」或「書背」（Spine）特寫照片。
-請辨識圖中的：
-1. 日文原名或標題 (title_jp)
-2. 英文名稱 (title_en)
-3. 商品型號/編號 (catalog)，如 SLPS-00542, GS-9027, T-13303G, SHVC-MO, NUS-xxx, CUSA-xxxxx, HAC-P-xxxx 等。
-4. 主機平台 (platform)，如 PS1, PS2, SS, SFC, DC, N64, PCE, Switch 等。
-
-請以純 JSON 格式輸出，不要有多餘說明文字或 markdown 程式碼區塊：
-{
-  "title_jp": "遊戲日文名",
-  "title_en": "英文名",
-  "catalog": "商品編號",
-  "platform": "平台名稱"
-}`;
+    const prompt = `這是復古或現代遊戲盒的「側標」或「書背」（Spine）照片。
+請辨識出以下資訊，以純文字輸出，每項一行，不要多餘說明：
+日文名稱: [遊戲日文名]
+英文名稱: [英文名，若無則省略]
+商品編號: [如 SLPS-00542 / GS-9027 / T-13303G / SHVC-MO / NUS-xxx 等，若無則省略]
+平台: [PS1/PS2/SS/SFC/DC/N64/PCE/Switch 等，若無則省略]`;
 
     const requestBody = {
       contents: [{
@@ -153,19 +145,21 @@ class OcrEngine {
 
     const data = await response.json();
     const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    
-    // 解析 JSON
-    let parsed = { title_jp: '', title_en: '', catalog: '', platform: '' };
-    try {
-      const cleanJson = replyText.replace(/```json/g, '').replace(/```/g, '').trim();
-      parsed = JSON.parse(cleanJson);
-    } catch (e) {
-      console.warn('[OcrEngine] Failed to parse Gemini response as JSON:', replyText);
+
+    // 解析純文字格式
+    const parsed = { title_jp: '', title_en: '', catalog: '', platform: '' };
+    for (const line of replyText.split('\n')) {
+      const m = line.match(/^(日文名稱|英文名稱|商品編號|平台)[：:]\s*(.+)/);
+      if (!m) continue;
+      if (m[1] === '日文名稱') parsed.title_jp = m[2].trim();
+      else if (m[1] === '英文名稱') parsed.title_en = m[2].trim();
+      else if (m[1] === '商品編號') parsed.catalog = m[2].trim();
+      else if (m[1] === '平台') parsed.platform = m[2].trim();
     }
 
     // 組合供 matcher 使用的純淨文字（catalog + 日文名 + 英文名）
     const parts = [parsed.catalog, parsed.title_jp, parsed.title_en].filter(Boolean);
-    const combinedText = parts.join(' ');
+    const combinedText = parts.join(' ') || replyText;
 
     // 供辨識文字框顯示的可讀文字
     const displayText = [
