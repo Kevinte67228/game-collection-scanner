@@ -124,11 +124,19 @@
       <div id="related-list"></div>
     </div>
 
-    <!-- Raw OCR Debug -->
-    <details style="margin-bottom: 16px; font-size: 11px; color: #64748b;">
-      <summary>查看 OCR 原始識別文字</summary>
-      <pre id="raw-ocr-text" style="white-space: pre-wrap; margin-top: 6px; padding: 8px; background: rgba(0,0,0,0.3); border-radius: 6px;"></pre>
-    </details>
+    <!-- Scanned Spine Image Preview -->
+    <div id="roi-preview-container" style="text-align: center; margin-bottom: 12px;">
+      <img id="roi-preview" style="max-height: 84px; width: 100%; object-fit: contain; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: #000;" alt="截圖預覽">
+    </div>
+
+    <!-- Raw OCR Debug & Instant Correction -->
+    <div style="margin-bottom: 16px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 10px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <span style="font-size: 12px; color: #94a3b8;">辨識文字（點擊可直接修正）：</span>
+        <button id="btn-re-match" style="background: var(--accent-cyan); color: #0b0f19; border: none; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 4px; cursor: pointer;">重新比對</button>
+      </div>
+      <textarea id="edit-ocr-text" rows="2" style="width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #fff; font-size: 13px; padding: 6px; resize: none;"></textarea>
+    </div>
 
     <button class="btn-primary" id="btn-close-sheet">繼續掃描下一款</button>
   </div>

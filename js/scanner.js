@@ -89,6 +89,9 @@ class CameraScanner {
   /**
    * 根據導引框裁切遊戲書背並進行灰階對比度增強
    */
+  /**
+   * 根據導引框精準裁切遊戲書背 (精確計算 object-fit: cover 視窗縮放與裁切偏移)
+   */
   captureROI(enhanceContrast = true) {
     if (!this.video || this.video.videoWidth === 0) return null;
 
@@ -97,65 +100,81 @@ class CameraScanner {
     const rect = this.guideOverlay.getBoundingClientRect();
     const container = this.video.getBoundingClientRect();
 
-    // 計算取景框相對於視頻畫面的比例與像素座標
-    const scaleX = vWidth / container.width;
-    const scaleY = vHeight / container.height;
+    // 1. 計算 object-fit: cover 之真實渲染尺寸與平移量
+    const videoRatio = vWidth / vHeight;
+    const containerRatio = container.width / container.height;
 
-    let roiX = (rect.left - container.left) * scaleX;
-    let roiY = (rect.top - container.top) * scaleY;
-    let roiW = rect.width * scaleX;
-    let roiH = rect.height * scaleY;
+    let renderedW, renderedH, offsetX = 0, offsetY = 0;
 
-    // 邊界防護
+    if (videoRatio > containerRatio) {
+      // 視頻寬度比例較大：高度貼齊容器，兩側被裁切
+      renderedH = container.height;
+      renderedW = container.height * videoRatio;
+      offsetX = (renderedW - container.width) / 2;
+    } else {
+      // 視頻高度比例較大：寬度貼齊容器，上下被裁切
+      renderedW = container.width;
+      renderedH = container.width / videoRatio;
+      offsetY = (renderedH - container.height) / 2;
+    }
+
+    const scale = vWidth / renderedW; // 像素等比縮放係數
+
+    // 2. 映射取景框 (rect) 至實際視頻原圖的像素座標
+    let roiX = (rect.left - container.left + offsetX) * scale;
+    let roiY = (rect.top - container.top + offsetY) * scale;
+    let roiW = rect.width * scale;
+    let roiH = rect.height * scale;
+
+    // 邊界保護
     roiX = Math.max(0, Math.min(roiX, vWidth - 10));
     roiY = Math.max(0, Math.min(roiY, vHeight - 10));
-    roiW = Math.min(roiW, vWidth - roiX);
-    roiH = Math.min(roiH, vHeight - roiY);
+    roiW = Math.max(10, Math.min(roiW, vWidth - roiX));
+    roiH = Math.max(10, Math.min(roiH, vHeight - roiY));
 
-    // 設定畫布尺寸（確保有足夠解析度供 OCR 辨識，放大 1.5 倍）
-    const targetW = Math.round(roiW * 1.5);
-    const targetH = Math.round(roiH * 1.5);
+    // 3. 設定畫布尺寸（維持足夠 DPI 供 OCR 辨識，長邊至少 1200px）
+    const minDim = Math.max(roiW, roiH);
+    const upscale = minDim < 1200 ? (1200 / minDim) : 1.0;
+    const targetW = Math.round(roiW * upscale);
+    const targetH = Math.round(roiH * upscale);
     this.canvas.width = targetW;
     this.canvas.height = targetH;
 
-    // 繪製裁切區域
+    // 4. 繪製裁切區域
     this.ctx.drawImage(this.video, roiX, roiY, roiW, roiH, 0, 0, targetW, targetH);
 
     if (enhanceContrast) {
       this.preprocessImage(targetW, targetH);
     }
 
-    return this.canvas.toDataURL('image/jpeg', 0.9);
+    return this.canvas.toDataURL('image/jpeg', 0.95);
   }
 
   /**
-   * 圖像前處理：灰階化、自動色階展開、銳化以大幅增強文字與商品編號的識別率
+   * 圖像前處理：自適應對比增強與降噪
    */
   preprocessImage(width, height) {
     const imgData = this.ctx.getImageData(0, 0, width, height);
     const data = imgData.data;
 
-    // 1. 計算亮度直方圖
+    // 溫和的對比度拉伸，避免反光過曝或黑字被吞噬
     let minL = 255;
     let maxL = 0;
     for (let i = 0; i < data.length; i += 4) {
-      // 灰階亮度 Y = 0.299R + 0.587G + 0.114B
-      const lum = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+      const lum = (data[i] * 299 + data[i + 1] * 587 + data[i + 2] * 114) / 1000;
       if (lum < minL) minL = lum;
       if (lum > maxL) maxL = lum;
     }
 
-    const range = (maxL - minL) || 1;
-
-    // 2. 對比度拉伸 (Linear Contrast Stretch)
+    // 保留 5% 裕度防止噪點拉爆對比
+    const range = Math.max(40, maxL - minL);
     for (let i = 0; i < data.length; i += 4) {
-      const lum = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
-      const stretched = Math.min(255, Math.max(0, Math.round(((lum - minL) / range) * 255)));
-      
-      // 增強文字邊緣
-      data[i] = stretched;
-      data[i + 1] = stretched;
-      data[i + 2] = stretched;
+      const lum = (data[i] * 299 + data[i + 1] * 587 + data[i + 2] * 114) / 1000;
+      const normalized = Math.min(255, Math.max(0, ((lum - minL) / range) * 255));
+      // 混合 70% 灰階增強與 30% 原色，保留彩色特徵
+      data[i] = Math.round(data[i] * 0.3 + normalized * 0.7);
+      data[i + 1] = Math.round(data[i + 1] * 0.3 + normalized * 0.7);
+      data[i + 2] = Math.round(data[i + 2] * 0.3 + normalized * 0.7);
     }
 
     this.ctx.putImageData(imgData, 0, 0);

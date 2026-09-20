@@ -49,6 +49,14 @@ class GameMatcher {
       }
     }
 
+    // 依長度排序以優先比對最長、最精準的型號與標題
+    this.catalogsSortedByLength = Array.from(this.catalogMap.keys()).sort((a, b) => b.length - a.length);
+    this.gamesSortedByLength = [...this.games].sort((a, b) => {
+      const lenA = Math.max(a.title_jp?.length || 0, a.title_en?.length || 0);
+      const lenB = Math.max(b.title_jp?.length || 0, b.title_en?.length || 0);
+      return lenB - lenA;
+    });
+
     // 3. Initialize Fuse.js
     if (typeof Fuse !== 'undefined') {
       const options = {
@@ -94,44 +102,26 @@ class GameMatcher {
     const text = rawText.trim();
     const cleanAll = this.cleanCatalog(text);
 
-    // 1. 嘗試從文字中以正規式萃取商品編號
-    // 支援 PS1/2/3/4/5 (SLPS, SCPS, CUSA, etc.), SS (GS-xxxx, T-xxxxx), SFC (SHVC-xx), N64 (NUS-xx), DC (T-xxxx, HDR-xxxx), etc.
-    const catalogRegex = /\b([A-Z]{1,5})[\s\-_]*([0-9]{3,6}[A-Z]?)\b/gi;
-    let match;
-    const detectedCatalogs = new Set();
+    // 1. 全字串直接掃描已知商品編號庫 (由長至短)
+    // 支援 PS1/2/3/4/5 (SLPS, SCPS), SS (GS-, T-), SFC (SHVC-), N64 (NUS-), DC, PCE, Switch 等
+    if (cleanAll.length >= 4) {
+      for (const cat of (this.catalogsSortedByLength || [])) {
+        if (cat.length >= 4 && cleanAll.includes(cat)) {
+          const matches = this.catalogMap.get(cat);
+          const exact = targetPlatform === 'ALL' 
+            ? matches[0] 
+            : (matches.find(m => m.platform === targetPlatform) || matches[0]);
 
-    while ((match = catalogRegex.exec(text)) !== null) {
-      const cleaned = (match[1] + match[2]).toUpperCase().replace(/[^A-Z0-9]/g, '');
-      if (cleaned.length >= 4) {
-        detectedCatalogs.add(cleaned);
-      }
-    }
-
-    // 亦直接把整個無符號字串加入測試
-    if (cleanAll.length >= 4 && cleanAll.length <= 15) {
-      detectedCatalogs.add(cleanAll);
-    }
-
-    // 檢查檢測出的編號是否有完全相符
-    for (const cat of detectedCatalogs) {
-      if (this.catalogMap.has(cat)) {
-        const matches = this.catalogMap.get(cat);
-        const exact = targetPlatform === 'ALL' 
-          ? matches[0] 
-          : (matches.find(m => m.platform === targetPlatform) || matches[0]);
-
-        // 找尋是否有其他版本或平台
-        const related = this.findRelated(exact);
-
-        return {
-          status: 'OWNED',
-          type: 'EXACT_CATALOG',
-          confidence: 1.0,
-          matchedCatalog: cat,
-          game: exact,
-          relatedGames: related,
-          message: `【已收藏】商品編號 ${exact.catalog} 完全符合！`
-        };
+          return {
+            status: 'OWNED',
+            type: 'EXACT_CATALOG',
+            confidence: 1.0,
+            matchedCatalog: cat,
+            game: exact,
+            relatedGames: this.findRelated(exact),
+            message: `【已收藏】商品編號 ${exact.catalog} 完全符合！`
+          };
+        }
       }
     }
 
@@ -159,17 +149,58 @@ class GameMatcher {
       }
     }
 
-    // 3. 標題模糊搜尋 (Fuse.js)
+    // 3. 智慧標題子字串比對 (過濾主機品牌名干擾，高精準鎖定書背日文/英文標題)
+    const cleanJp = text
+      .toLowerCase()
+      .replace(/(playstation|プレイステーション|ps[1-5]?|sega\s*saturn|セガサターン|super\s*famicom|スーパーファミコン|nintendo\s*64|ニンテンドウ64|dreamcast|ドリームキャスト|pc\s*engine|メガドライブ|game\s*boy)/g, '')
+      .replace(/[^一-龠ぁ-ゔァ-ヴーa-zA-Z0-9]/g, '');
+
+    if (cleanJp.length >= 3) {
+      // 依標題長度由長至短比對，優先命中精確完整標題 (如 ダービースタリオン96 優於 ダービースタリオン)
+      for (const game of (this.gamesSortedByLength || this.games)) {
+        if (targetPlatform !== 'ALL' && game.platform !== targetPlatform) {
+          continue;
+        }
+
+        const gameTitleJp = (game.title_jp || '').toLowerCase().replace(/[^一-龠ぁ-ゔァ-ヴーa-zA-Z0-9]/g, '');
+        const gameTitleEn = (game.title_en || '').toLowerCase().replace(/[^一-龠ぁ-ゔァ-ヴーa-zA-Z0-9]/g, '');
+
+        if (
+          (gameTitleJp.length >= 3 && cleanJp.includes(gameTitleJp)) ||
+          (gameTitleEn.length >= 4 && cleanJp.includes(gameTitleEn)) ||
+          (cleanJp.length >= 4 && (gameTitleJp.includes(cleanJp) || gameTitleEn.includes(cleanJp)))
+        ) {
+          const related = this.findRelated(game);
+          return {
+            status: 'OWNED',
+            type: 'SUBSTRING_TITLE',
+            confidence: 0.95,
+            matchedCatalog: game.catalog,
+            game: game,
+            relatedGames: related,
+            message: `【已收藏】書背標題《${game.title_jp}》比對吻合！`
+          };
+        }
+      }
+    }
+
+    // 4. 標題模糊搜尋 (Fuse.js)
     if (this.fuse) {
-      const cleanSearchQuery = text.replace(/[\r\n]+/g, ' ').slice(0, 100);
-      const fuseResults = this.fuse.search(cleanSearchQuery);
+      // 去除主機關鍵字後的純淨搜尋字串
+      const cleanSearchQuery = text
+        .replace(/(PlayStation|SEGA SATURN|Super Famicom|Nintendo 64|DREAMCAST)/gi, '')
+        .replace(/[\r\n]+/g, ' ')
+        .trim()
+        .slice(0, 100);
+
+      const fuseResults = this.fuse.search(cleanSearchQuery || text);
 
       if (fuseResults.length > 0) {
         const best = fuseResults[0];
         const score = best.score; // 0 是完美匹配，1 是完全不符
         const candidate = best.item;
 
-        if (score <= 0.32) {
+        if (score <= 0.35) {
           // 高信心度命中
           const related = this.findRelated(candidate);
           const isSamePlatform = (targetPlatform === 'ALL' || candidate.platform === targetPlatform);
@@ -193,7 +224,7 @@ class GameMatcher {
             relatedGames: related,
             message: `【已收藏】遊戲標題高度吻合（信心度 ${Math.round((1 - score) * 100)}%）！`
           };
-        } else if (score <= 0.45) {
+        } else if (score <= 0.48) {
           // 潛在中度相似
           return {
             status: 'PARTIAL',
@@ -207,7 +238,7 @@ class GameMatcher {
       }
     }
 
-    // 4. 無任何相符
+    // 5. 無任何相符
     return {
       status: 'NOT_OWNED',
       type: 'NO_MATCH',

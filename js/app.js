@@ -40,7 +40,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const resNotes = document.getElementById('res-notes');
   const relatedSection = document.getElementById('related-section');
   const relatedList = document.getElementById('related-list');
-  const rawOcrText = document.getElementById('raw-ocr-text');
+  const roiPreview = document.getElementById('roi-preview');
+  const editOcrText = document.getElementById('edit-ocr-text');
+  const btnReMatch = document.getElementById('btn-re-match');
 
   // Settings Modal Elements
   const settingsModal = document.getElementById('settings-modal');
@@ -148,12 +150,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     isScanningBusy = true;
     showScanStatus('正在擷取影像與字體...');
 
+    // 顯示即時裁切預覽
+    if (roiPreview) {
+      roiPreview.src = dataUrl;
+    }
+
     try {
       const ocrResult = await ocr.recognize(dataUrl, (msg) => {
         showScanStatus(msg);
       });
 
-      rawOcrText.textContent = ocrResult.rawText || '未識別出有效文字';
+      if (editOcrText) {
+        editOcrText.value = ocrResult.rawText || '';
+      }
 
       // Match against database
       const matchResult = matcher.match(ocrResult.rawText, currentPlatform);
@@ -332,6 +341,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     searchInput.value = '';
     searchClear.style.display = 'none';
   });
+
+  // Re-match edited OCR text
+  if (btnReMatch && editOcrText) {
+    btnReMatch.addEventListener('click', () => {
+      const edited = editOcrText.value.trim();
+      if (edited) {
+        const matchResult = matcher.match(edited, currentPlatform);
+        displayResult(matchResult);
+      }
+    });
+
+    let editTimer = null;
+    editOcrText.addEventListener('input', () => {
+      clearTimeout(editTimer);
+      editTimer = setTimeout(() => {
+        const edited = editOcrText.value.trim();
+        if (edited) {
+          const matchResult = matcher.match(edited, currentPlatform);
+          displayResult(matchResult);
+        }
+      }, 400);
+    });
+  }
 
   // Sheet close
   btnCloseSheet.addEventListener('click', () => resultSheet.classList.remove('open'));
