@@ -11,6 +11,7 @@ const ASSETS_TO_CACHE = [
   './js/fuse.min.js',
   './js/tesseract.min.js',
   './data/games.json',
+  './icons/icon.svg',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/apple-touch-icon.png'
