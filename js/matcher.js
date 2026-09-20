@@ -165,16 +165,24 @@ class GameMatcher {
         const gameTitleJp = (game.title_jp || '').toLowerCase().replace(/[^一-龠ぁ-ゔァ-ヴーa-zA-Z0-9]/g, '');
         const gameTitleEn = (game.title_en || '').toLowerCase().replace(/[^一-龠ぁ-ゔァ-ヴーa-zA-Z0-9]/g, '');
 
+        // 缺頭容錯：OCR直排首字常誤辨，嘗試去掉前1~2字仍能命中
+        const jpSuffix1 = gameTitleJp.length >= 5 ? gameTitleJp.slice(1) : '';
+        const jpSuffix2 = gameTitleJp.length >= 6 ? gameTitleJp.slice(2) : '';
+        const enSuffix1 = gameTitleEn.length >= 5 ? gameTitleEn.slice(1) : '';
+
         if (
           (gameTitleJp.length >= 3 && cleanJp.includes(gameTitleJp)) ||
           (gameTitleEn.length >= 4 && cleanJp.includes(gameTitleEn)) ||
-          (cleanJp.length >= 4 && (gameTitleJp.includes(cleanJp) || gameTitleEn.includes(cleanJp)))
+          (cleanJp.length >= 4 && (gameTitleJp.includes(cleanJp) || gameTitleEn.includes(cleanJp))) ||
+          (jpSuffix1.length >= 4 && cleanJp.includes(jpSuffix1)) ||
+          (jpSuffix2.length >= 4 && cleanJp.includes(jpSuffix2)) ||
+          (enSuffix1.length >= 4 && cleanJp.includes(enSuffix1))
         ) {
           const related = this.findRelated(game);
           return {
             status: 'OWNED',
             type: 'SUBSTRING_TITLE',
-            confidence: 0.95,
+            confidence: 0.88,
             matchedCatalog: game.catalog,
             game: game,
             relatedGames: related,
