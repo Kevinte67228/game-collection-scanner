@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0f19">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>遊戲書背查重神器 (Game Collection Scanner)</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <!-- Header -->
+  <header class="app-header">
+    <div class="brand">
+      <img src="icons/icon-192.png" alt="App Icon" class="brand-icon">
+      <div class="brand-text">
+        <h1>書背查重</h1>
+      </div>
+      <span class="database-badge" id="db-badge">載入中...</span>
+    </div>
+    <div class="header-actions">
+      <button class="btn-icon" id="btn-torch" title="手電筒">🔦</button>
+      <button class="btn-icon" id="btn-orient" title="切換橫/直導引框">🔄</button>
+      <button class="btn-icon" id="btn-settings" title="設定">⚙️</button>
+    </div>
+  </header>
+
+  <!-- Camera Scanner Viewport -->
+  <main class="scanner-viewport" id="viewport">
+    <video id="camera-video" playsinline autoplay muted></video>
+    <canvas id="roi-canvas" style="display: none;"></canvas>
+
+    <!-- Scanning ROI Guide Overlay -->
+    <div class="guide-overlay" id="guide-overlay" data-orientation="horizontal">
+      <div class="scan-laser"></div>
+      <div class="guide-hint">將書背或商品編號對準框內</div>
+    </div>
+
+    <!-- Scanning Progress Indicator -->
+    <div class="scanning-status hidden" id="scan-status">
+      <span class="spinner">⏳</span>
+      <span id="scan-status-text">辨識中...</span>
+    </div>
+  </main>
+
+  <!-- Bottom Control Bar -->
+  <footer class="control-bar">
+    <!-- Platform Filter -->
+    <div class="platform-filter-bar" id="platform-chips">
+      <div class="chip active" data-platform="ALL">全部 (ALL)</div>
+      <div class="chip" data-platform="PS1">PS1</div>
+      <div class="chip" data-platform="SS">SS</div>
+      <div class="chip" data-platform="SFC">SFC</div>
+      <div class="chip" data-platform="DC">DC</div>
+      <div class="chip" data-platform="PS2">PS2</div>
+      <div class="chip" data-platform="PS3">PS3</div>
+      <div class="chip" data-platform="PS4">PS4</div>
+      <div class="chip" data-platform="PS5">PS5</div>
+      <div class="chip" data-platform="PCE">PCE</div>
+      <div class="chip" data-platform="N64">N64</div>
+      <div class="chip" data-platform="MD">MD</div>
+      <div class="chip" data-platform="NGC">NGC</div>
+      <div class="chip" data-platform="PSP">PSP</div>
+      <div class="chip" data-platform="NS">Switch</div>
+      <div class="chip" data-platform="Books">書籍</div>
+    </div>
+
+    <!-- Main Capture & Secondary Actions -->
+    <div class="main-actions">
+      <button class="btn-secondary-action" id="btn-upload" title="從相簿上傳">🖼️</button>
+      <input type="file" id="file-input" accept="image/*" style="display: none;">
+
+      <button class="btn-capture" id="btn-capture" title="拍照辨識">
+        <span>📸</span>
+      </button>
+
+      <button class="btn-secondary-action" id="btn-sound" title="提示音切換">🔔</button>
+    </div>
+
+    <!-- Quick Search Bar -->
+    <div class="search-box">
+      <span>🔍</span>
+      <input type="text" id="search-input" placeholder="手動搜尋：輸入書背文字或編號 (如 SLPS 00542)">
+      <button id="search-clear" style="background:none; border:none; color:#888; display:none; cursor:pointer;">✕</button>
+    </div>
+  </footer>
+
+  <!-- Result Modal Bottom Sheet -->
+  <div class="result-sheet" id="result-sheet">
+    <div class="sheet-handle" id="sheet-handle"></div>
+
+    <!-- Status Banner -->
+    <div class="status-banner owned" id="status-banner">
+      <div class="status-banner-icon" id="status-icon">🔴</div>
+      <div class="status-banner-content">
+        <h2 id="status-title">🔴 已收藏</h2>
+        <p id="status-desc">重複注意！不要買！</p>
+      </div>
+    </div>
+
+    <!-- Matched Game Card -->
+    <div class="game-card" id="matched-card">
+      <div class="game-title-jp" id="res-title-jp">遊戲名稱</div>
+      <div class="game-title-zh" id="res-title-zh">中文譯名</div>
+      <div class="game-title-en" id="res-title-en">English Title</div>
+
+      <div class="game-meta-row">
+        <span class="meta-tag highlight" id="res-platform">PS1</span>
+        <span class="meta-tag highlight" id="res-catalog">SLPS 00542</span>
+        <span class="meta-tag" id="res-no">No. 99</span>
+        <span class="meta-tag" id="res-region">日版</span>
+      </div>
+
+      <div class="meta-notes" id="res-notes">發行商 / 備註資訊</div>
+    </div>
+
+    <!-- Related / Other Platform Releases -->
+    <div class="related-section" id="related-section" style="display: none;">
+      <h3>相關或其它主機版本：</h3>
+      <div id="related-list"></div>
+    </div>
+
+    <!-- Raw OCR Debug -->
+    <details style="margin-bottom: 16px; font-size: 11px; color: #64748b;">
+      <summary>查看 OCR 原始識別文字</summary>
+      <pre id="raw-ocr-text" style="white-space: pre-wrap; margin-top: 6px; padding: 8px; background: rgba(0,0,0,0.3); border-radius: 6px;"></pre>
+    </details>
+
+    <button class="btn-primary" id="btn-close-sheet">繼續掃描下一款</button>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal hidden" id="settings-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>系統設定</h2>
+        <button id="btn-close-settings" style="background:none; border:none; color:#fff; font-size: 20px; cursor:pointer;">✕</button>
+      </div>
+
+      <div class="form-group">
+        <label>OCR 辨識引擎</label>
+        <select id="select-engine">
+          <option value="tesseract">離線 Tesseract (無網路可用 / 免費)</option>
+          <option value="gemini">Google Gemini Flash (雲端極速高精準)</option>
+        </select>
+      </div>
+
+      <div class="form-group" id="gemini-key-group">
+        <label>Gemini API Key (選填，使用 Gemini 時必填)</label>
+        <input type="password" id="input-gemini-key" placeholder="貼上 Google AI Studio API Key">
+        <p style="font-size: 11px; color: #64748b; margin-top: 4px;">可免費申請，辨識日本複雜藝術字體側標準確率極高。</p>
+      </div>
+
+      <div class="form-group">
+        <label>感官回饋</label>
+        <label style="display: flex; align-items: center; gap: 8px; color: #fff; font-size: 14px; margin-top: 6px;">
+          <input type="checkbox" id="check-vibration" checked style="width: auto;"> 啟用手機震動反饋
+        </label>
+        <label style="display: flex; align-items: center; gap: 8px; color: #fff; font-size: 14px; margin-top: 6px;">
+          <input type="checkbox" id="check-sound" checked style="width: auto;"> 啟用提示音效
+        </label>
+      </div>
+
+      <div class="form-group">
+        <label>收藏數據庫</label>
+        <p style="font-size: 12px; color: #38bdf8;" id="db-info">載入中...</p>
+      </div>
+
+      <button class="btn-primary" id="btn-save-settings">儲存設定</button>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/fuse.min.js"></script>
+  <script src="js/tesseract.min.js"></script>
+  <script src="js/matcher.js"></script>
+  <script src="js/scanner.js"></script>
+  <script src="js/ocr.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
