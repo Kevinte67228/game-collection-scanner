@@ -157,6 +157,28 @@ class OcrEngine {
       else if (m[1] === '平台') parsed.platform = m[2].trim();
     }
 
+    // Fallback: 若上方純文字解析為空，嘗試解析 JSON（Gemini 偶爾仍回 JSON）
+    if (!parsed.title_jp && !parsed.catalog) {
+      try {
+        const cleanJson = replyText.replace(/```json/g, '').replace(/```/g, '').trim();
+        const j = JSON.parse(cleanJson);
+        parsed.title_jp = j.title_jp || j['日文名稱'] || '';
+        parsed.title_en = j.title_en || j['英文名稱'] || '';
+        parsed.catalog = j.catalog || j['商品編號'] || '';
+        parsed.platform = j.platform || j['平台'] || '';
+      } catch (e) {
+        // JSON 也失敗（可能被截斷），嘗試從殘缺 JSON 中用 regex 提取
+        const jpMatch = replyText.match(/"title_jp"\s*:\s*"([^"]+)/);
+        const enMatch = replyText.match(/"title_en"\s*:\s*"([^"]+)/);
+        const catMatch = replyText.match(/"catalog"\s*:\s*"([^"]+)/);
+        const platMatch = replyText.match(/"platform"\s*:\s*"([^"]+)/);
+        if (jpMatch) parsed.title_jp = jpMatch[1];
+        if (enMatch) parsed.title_en = enMatch[1];
+        if (catMatch) parsed.catalog = catMatch[1];
+        if (platMatch) parsed.platform = platMatch[1];
+      }
+    }
+
     // 組合供 matcher 使用的純淨文字（catalog + 日文名 + 英文名）
     const parts = [parsed.catalog, parsed.title_jp, parsed.title_en].filter(Boolean);
     const combinedText = parts.join(' ') || replyText;

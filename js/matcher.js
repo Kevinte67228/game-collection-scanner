@@ -254,7 +254,7 @@ class GameMatcher {
       text: text,
       game: null,
       relatedGames: [],
-      message: '🔴【未收藏】在目前 2,143 款收藏中未找到相符紀錄，推薦入手！'
+      message: `在目前 ${this.games.length.toLocaleString()} 款收藏中未找到相符紀錄。`
     };
   }
 

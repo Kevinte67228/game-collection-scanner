@@ -1,4 +1,4 @@
-const CACHE_NAME = 'game-scanner-v1.0.2';
+const CACHE_NAME = 'game-scanner-v1.1.0';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -49,7 +49,8 @@ self.addEventListener('fetch', (event) => {
                        event.request.destination === 'style' ||
                        event.request.url.endsWith('.html') ||
                        event.request.url.endsWith('.js') ||
-                       event.request.url.endsWith('.css');
+                       event.request.url.endsWith('.css') ||
+                       event.request.url.endsWith('games.json');
 
   if (isCodeOrHtml) {
     event.respondWith(

@@ -221,7 +221,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       statusBanner.classList.add('notowned');
       statusIcon.textContent = '🟢';
       statusTitle.textContent = '🟢【未收藏】推薦入手！';
-      statusDesc.textContent = '在目前 2,143 款收藏中無此遊戲，可安心購買！';
+      statusDesc.textContent = `在目前 ${matcher.games.length.toLocaleString()} 款收藏中無此遊戲，可安心購買！`;
       playTone('notowned');
       triggerVibration('notowned');
 
