@@ -159,7 +159,11 @@ class OcrEngine {
     let parsed = { title_jp: '', title_zh: '', title_en: '', catalog: '', platform: '', notes: '' };
     try {
       const cleanJson = replyText.replace(/```json/g, '').replace(/```/g, '').trim();
-      parsed = Object.assign(parsed, JSON.parse(cleanJson));
+      let parsedJson = JSON.parse(cleanJson);
+      if (Array.isArray(parsedJson) && parsedJson.length > 0) {
+        parsedJson = parsedJson[0];
+      }
+      parsed = Object.assign(parsed, parsedJson);
     } catch (e) {
       console.warn('[OcrEngine] JSON parse fallback:', replyText);
       // 容錯提取
