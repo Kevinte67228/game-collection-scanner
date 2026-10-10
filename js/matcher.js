@@ -149,36 +149,40 @@ class GameMatcher {
       }
     }
 
-    // 3. 智慧標題子字串比對 (過濾主機品牌名干擾，高精準鎖定書背日文/英文標題)
+    // 3. 智慧標題子字串比對 (過濾主機品牌名干擾，高精準鎖定日文/中文/英文標題)
     const cleanJp = text
       .toLowerCase()
       .replace(/(playstation|プレイステーション|ps[1-5]?|sega\s*saturn|セガサターン|super\s*famicom|スーパーファミコン|nintendo\s*64|ニンテンドウ64|dreamcast|ドリームキャスト|pc\s*engine|メガドライブ|game\s*boy)/g, '')
-      .replace(/[^一-龠ぁ-ゔァ-ヴーa-zA-Z0-9]/g, '');
+      .replace(/[^一-龠ぁ-ゔァ-ヴーa-zA-Z0-9\u4e00-\u9fa5]/g, '');
 
-    if (cleanJp.length >= 3) {
-      // 依標題長度由長至短比對，優先命中精確完整標題 (如 ダービースタリオン96 優於 ダービースタリオン)
+    if (cleanJp.length >= 2) {
       for (const game of (this.gamesSortedByLength || this.games)) {
         if (targetPlatform !== 'ALL' && game.platform !== targetPlatform) {
           continue;
         }
 
-        const gameTitleJp = (game.title_jp || '').toLowerCase().replace(/[^一-龠ぁ-ゔァ-ヴーa-zA-Z0-9]/g, '');
-        const gameTitleEn = (game.title_en || '').toLowerCase().replace(/[^一-龠ぁ-ゔァ-ヴーa-zA-Z0-9]/g, '');
+        const gameTitleJp = (game.title_jp || '').toLowerCase().replace(/[^一-龠ぁ-ゔァ-ヴーa-zA-Z0-9\u4e00-\u9fa5]/g, '');
+        const gameTitleZh = (game.title_zh || '').toLowerCase().replace(/[^一-龠ぁ-ゔァ-ヴーa-zA-Z0-9\u4e00-\u9fa5]/g, '');
+        const gameTitleEn = (game.title_en || '').toLowerCase().replace(/[^一-龠ぁ-ゔァ-ヴーa-zA-Z0-9\u4e00-\u9fa5]/g, '');
 
         // 缺頭容錯：OCR直排首字常誤辨，嘗試去掉前1~2字仍能命中
         const jpSuffix1 = gameTitleJp.length >= 5 ? gameTitleJp.slice(1) : '';
         const jpSuffix2 = gameTitleJp.length >= 6 ? gameTitleJp.slice(2) : '';
         const enSuffix1 = gameTitleEn.length >= 5 ? gameTitleEn.slice(1) : '';
+        const zhSuffix1 = gameTitleZh.length >= 4 ? gameTitleZh.slice(1) : '';
 
         if (
           (gameTitleJp.length >= 3 && cleanJp.includes(gameTitleJp)) ||
+          (gameTitleZh.length >= 2 && cleanJp.includes(gameTitleZh)) ||
           (gameTitleEn.length >= 4 && cleanJp.includes(gameTitleEn)) ||
-          (cleanJp.length >= 4 && (gameTitleJp.includes(cleanJp) || gameTitleEn.includes(cleanJp))) ||
+          (cleanJp.length >= 3 && (gameTitleJp.includes(cleanJp) || gameTitleZh.includes(cleanJp) || gameTitleEn.includes(cleanJp))) ||
           (jpSuffix1.length >= 4 && cleanJp.includes(jpSuffix1)) ||
           (jpSuffix2.length >= 4 && cleanJp.includes(jpSuffix2)) ||
+          (zhSuffix1.length >= 3 && cleanJp.includes(zhSuffix1)) ||
           (enSuffix1.length >= 4 && cleanJp.includes(enSuffix1))
         ) {
           const related = this.findRelated(game);
+          const displayMatchTitle = game.title_zh || game.title_jp;
           return {
             status: 'OWNED',
             type: 'SUBSTRING_TITLE',
@@ -186,7 +190,7 @@ class GameMatcher {
             matchedCatalog: game.catalog,
             game: game,
             relatedGames: related,
-            message: `【已收藏】書背標題《${game.title_jp}》比對吻合！`
+            message: `【已收藏】標題《${displayMatchTitle}》比對吻合！`
           };
         }
       }
