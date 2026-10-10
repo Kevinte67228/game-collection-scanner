@@ -24,9 +24,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const scanStatusText = document.getElementById('scan-status-text');
   const searchInput = document.getElementById('search-input');
   const searchClear = document.getElementById('search-clear');
-  const platformChips = document.getElementById('platform-chips');
-
-  // Result Sheet Elements
   const resultSheet = document.getElementById('result-sheet');
   const btnCloseSheet = document.getElementById('btn-close-sheet');
   const sheetHandle = document.getElementById('sheet-handle');
@@ -149,7 +146,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     allPlatforms.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
     if (!allPlatforms.includes('書籍')) allPlatforms.push('書籍');
     if (!allPlatforms.includes('攻略')) allPlatforms.push('攻略');
-    renderPlatformList();
+    if (typeof window.renderPlatformList === 'function') window.renderPlatformList();
   }
 
   // GitHub Sync Function
@@ -539,14 +536,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const platformList = document.getElementById('platform-list');
   const currentPlatformText = document.getElementById('current-platform-text');
 
-  window.renderPlatformList = function(filterText = '') {
+  function renderPlatformList(filterText = '') {
     if (!platformList) return;
     platformList.innerHTML = '';
     
     const term = filterText.toLowerCase();
     
-    // Always add "ALL"
-    if ('all'.includes(term) || '不指定'.includes(term)) {
+    if ('all'.includes(term) || '不指定'.includes(term) || term === '') {
       const allItem = document.createElement('div');
       allItem.className = 'platform-item special';
       allItem.textContent = '— 不指定 (ALL) —';
@@ -563,7 +559,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         platformList.appendChild(item);
       }
     });
-  };
+  }
+  window.renderPlatformList = renderPlatformList;
 
   function selectPlatform(val, display) {
     currentPlatform = val;
