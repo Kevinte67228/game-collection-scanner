@@ -208,8 +208,15 @@ class GameMatcher {
       const fuseResults = this.fuse.search(cleanSearchQuery || text);
 
       if (fuseResults.length > 0) {
-        const best = fuseResults[0];
-        const score = best.score; // 0 是完美匹配，1 是完全不符
+        // 若指定特定平台，優先挑選符合該平台的最佳結果
+        let best = fuseResults[0];
+        if (targetPlatform !== 'ALL') {
+          const samePlatCandidate = fuseResults.find(r => r.item.platform === targetPlatform && r.score <= 0.42);
+          if (samePlatCandidate) {
+            best = samePlatCandidate;
+          }
+        }
+        const score = best.score;
         const candidate = best.item;
 
         if (score <= 0.35) {
