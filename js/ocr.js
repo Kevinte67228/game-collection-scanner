@@ -58,14 +58,12 @@ class OcrEngine {
    */
   async recognize(imageDataUrl, onProgress, isVertical = false) {
     // 若設定使用 Gemini 且有 API Key，優先使用 Gemini Flash
-    if (this.preferredEngine === 'gemini' && this.geminiApiKey) {
-      try {
-        if (onProgress) onProgress('正在透過 Gemini Flash 深度解析與日翻中...');
-        return await this.recognizeWithGemini(imageDataUrl);
-      } catch (err) {
-        console.warn('[OcrEngine] Gemini OCR 失敗，自動切換至離線 Tesseract 備援:', err);
-        if (onProgress) onProgress('Gemini 連線異常，切換離線辨識...');
+    if (this.preferredEngine === 'gemini') {
+      if (!this.geminiApiKey) {
+        throw new Error('尚未設定 Gemini API Key，請至右上角齒輪設定');
       }
+      if (onProgress) onProgress('正在透過 Gemini Flash 深度解析與日翻中...');
+      return await this.recognizeWithGemini(imageDataUrl);
     }
 
     // 離線 Tesseract 辨識
@@ -137,15 +135,24 @@ class OcrEngine {
       }
     };
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
     let response;
     try {
       response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
       });
     } catch (netErr) {
+      if (netErr.name === 'AbortError') {
+        throw new Error('Gemini API 請求超時 (超過 15 秒無回應)，請檢查網路連線後重試');
+      }
       throw new Error(`網路連線失敗: ${netErr.message}`);
+    } finally {
+      clearTimeout(timeoutId);
     }
 
     if (!response.ok) {

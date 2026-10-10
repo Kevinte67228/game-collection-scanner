@@ -125,10 +125,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       dbBadge.textContent = '載入失敗';
     }
 
-    // Auto-check GitHub for updates in background
-    if (navigator.onLine) {
-      setTimeout(() => syncFromGitHub(currentGithubUrl, false), 1500);
-    }
+    // 僅在初次無任何資料時提示同步，避免每次開啟皆在背景大量下載造成手機主線程卡死
   }
 
   let allPlatforms = [];
@@ -142,11 +139,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       dbSyncStatus.textContent = `當前版本：${count.toLocaleString()} 筆 (${dateStr})`;
     }
     
-    allPlatforms = [...new Set(matcher.games.map(g => g.platform))].filter(Boolean);
+    // 嚴格對照線上檔案：優先使用 data.platforms，若無則從 games 中的 platform 動態統計
+    if (Array.isArray(data.platforms) && data.platforms.length > 0) {
+      allPlatforms = [...data.platforms];
+    } else {
+      allPlatforms = [...new Set(matcher.games.map(g => g.platform))].filter(Boolean);
+    }
+    // 嚴格按字母小到大排序 (A-Z)
     allPlatforms.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
-    if (!allPlatforms.includes('書籍')) allPlatforms.push('書籍');
-    if (!allPlatforms.includes('攻略')) allPlatforms.push('攻略');
-    if (typeof window.renderPlatformList === 'function') window.renderPlatformList();
+    
+    if (typeof window.renderPlatformList === 'function') {
+      window.renderPlatformList();
+    }
   }
 
   // GitHub Sync Function
@@ -540,21 +544,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!platformList) return;
     platformList.innerHTML = '';
     
-    const term = filterText.toLowerCase();
+    const term = (filterText || '').toLowerCase().trim();
     
-    if ('all'.includes(term) || '不指定'.includes(term) || term === '') {
+    if (!term || 'all'.includes(term) || '不指定'.includes(term) || '全部'.includes(term)) {
       const allItem = document.createElement('div');
       allItem.className = 'platform-item special';
-      allItem.textContent = '— 不指定 (ALL) —';
+      if (currentPlatform === 'ALL') {
+        allItem.style.color = '#38bdf8';
+        allItem.style.fontWeight = '700';
+        allItem.textContent = '— 不指定 (ALL) —  ✓';
+      } else {
+        allItem.textContent = '— 不指定 (ALL) —';
+      }
       allItem.onclick = () => selectPlatform('ALL', '— 不指定 (ALL) —');
       platformList.appendChild(allItem);
     }
 
     allPlatforms.forEach(p => {
-      if (p.toLowerCase().includes(term)) {
+      if (!term || p.toLowerCase().includes(term)) {
         const item = document.createElement('div');
         item.className = 'platform-item';
-        item.textContent = p;
+        if (p === currentPlatform) {
+          item.style.color = '#38bdf8';
+          item.style.fontWeight = '700';
+          item.textContent = `${p}  ✓`;
+        } else {
+          item.textContent = p;
+        }
         item.onclick = () => selectPlatform(p, p);
         platformList.appendChild(item);
       }
@@ -564,16 +580,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function selectPlatform(val, display) {
     currentPlatform = val;
-    if (currentPlatformText) currentPlatformText.textContent = display;
+    if (currentPlatformText) currentPlatformText.textContent = display.replace('  ✓', '');
     if (platformModal) platformModal.classList.add('hidden');
   }
 
   if (btnOpenPlatform) {
     btnOpenPlatform.addEventListener('click', () => {
-      inputPlatformSearch.value = '';
+      if (inputPlatformSearch) inputPlatformSearch.value = '';
       renderPlatformList();
       platformModal.classList.remove('hidden');
-      setTimeout(() => inputPlatformSearch.focus(), 100);
+      setTimeout(() => inputPlatformSearch && inputPlatformSearch.focus(), 100);
     });
   }
 
@@ -582,6 +598,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       platformModal.classList.add('hidden');
     });
   }
+
+  // 點擊彈窗遮罩灰色背景自動關閉
+  [platformModal, cartModal, settingsModal].forEach(modalEl => {
+    if (modalEl) {
+      modalEl.addEventListener('click', (e) => {
+        if (e.target === modalEl) {
+          modalEl.classList.add('hidden');
+        }
+      });
+    }
+  });
 
   if (inputPlatformSearch) {
     inputPlatformSearch.addEventListener('input', (e) => {
