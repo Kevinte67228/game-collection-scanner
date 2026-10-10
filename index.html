@@ -51,24 +51,27 @@
 
   <!-- Bottom Control Bar -->
   <footer class="control-bar">
-    <!-- Platform Filter -->
-    <div class="platform-filter-bar" id="platform-chips">
-      <div class="chip active" data-platform="ALL">全部 (ALL)</div>
-      <div class="chip" data-platform="PS1">PS1</div>
-      <div class="chip" data-platform="SS">SS</div>
-      <div class="chip" data-platform="SFC">SFC</div>
-      <div class="chip" data-platform="DC">DC</div>
-      <div class="chip" data-platform="PS2">PS2</div>
-      <div class="chip" data-platform="PS3">PS3</div>
-      <div class="chip" data-platform="PS4">PS4</div>
-      <div class="chip" data-platform="PS5">PS5</div>
-      <div class="chip" data-platform="PCE">PCE</div>
-      <div class="chip" data-platform="N64">N64</div>
-      <div class="chip" data-platform="MD">MD</div>
-      <div class="chip" data-platform="NGC">NGC</div>
-      <div class="chip" data-platform="PSP">PSP</div>
-      <div class="chip" data-platform="NS">Switch</div>
-      <div class="chip" data-platform="Books">書籍</div>
+    <!-- Platform Filter Dropdown -->
+    <div style="padding: 12px 16px;">
+      <select id="platform-select" style="width: 100%; padding: 10px; background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; font-size: 16px; outline: none;">
+        <option value="ALL">所有分類 (ALL)</option>
+        <option value="PS1">PS1</option>
+        <option value="SS">SS</option>
+        <option value="SFC">SFC</option>
+        <option value="DC">DC</option>
+        <option value="PS2">PS2</option>
+        <option value="PS3">PS3</option>
+        <option value="PS4">PS4</option>
+        <option value="PS5">PS5</option>
+        <option value="PCE">PCE</option>
+        <option value="N64">N64</option>
+        <option value="MD">MD</option>
+        <option value="NGC">NGC</option>
+        <option value="PSP">PSP</option>
+        <option value="NS">Switch</option>
+        <option value="Books">書籍</option>
+        <option value="Guide">攻略</option>
+      </select>
     </div>
 
     <!-- Main Capture & Secondary Actions -->

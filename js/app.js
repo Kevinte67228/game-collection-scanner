@@ -194,6 +194,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Audio Feedback (Web Audio API)
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  let audioUnlocked = false;
+  function unlockAudio() {
+    if (!audioUnlocked && audioCtx.state === 'suspended') {
+      audioCtx.resume().then(() => { audioUnlocked = true; });
+    }
+  }
+  ['touchstart', 'touchend', 'click'].forEach(e => document.body.addEventListener(e, unlockAudio, { once: true }));
+
   function playTone(type) {
     if (!soundEnabled) return;
     try {
@@ -517,12 +525,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Platform chips
-  platformChips.addEventListener('click', (e) => {
-    const chip = e.target.closest('.chip');
-    if (!chip) return;
-    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-    chip.classList.add('active');
-    currentPlatform = chip.getAttribute('data-platform');
+  const platformSelect = document.getElementById('platform-select');
+  platformSelect.addEventListener('change', (e) => {
+    currentPlatform = e.target.value;
   });
 
   // Search input debounce
