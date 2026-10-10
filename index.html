@@ -52,26 +52,12 @@
   <!-- Bottom Control Bar -->
   <footer class="control-bar">
     <!-- Platform Filter Dropdown -->
+    <!-- Platform Filter Dropdown Button -->
     <div style="padding: 12px 16px;">
-      <select id="platform-select" style="width: 100%; padding: 10px; background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; font-size: 16px; outline: none;">
-        <option value="ALL">所有分類 (ALL)</option>
-        <option value="PS1">PS1</option>
-        <option value="SS">SS</option>
-        <option value="SFC">SFC</option>
-        <option value="DC">DC</option>
-        <option value="PS2">PS2</option>
-        <option value="PS3">PS3</option>
-        <option value="PS4">PS4</option>
-        <option value="PS5">PS5</option>
-        <option value="PCE">PCE</option>
-        <option value="N64">N64</option>
-        <option value="MD">MD</option>
-        <option value="NGC">NGC</option>
-        <option value="PSP">PSP</option>
-        <option value="NS">Switch</option>
-        <option value="Books">書籍</option>
-        <option value="Guide">攻略</option>
-      </select>
+      <button id="btn-open-platform" style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.8); color: #fff; border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; font-size: 15px; font-weight: 500; text-align: left; display: flex; justify-content: space-between; align-items: center; backdrop-filter: blur(8px);">
+        <span id="current-platform-text">— 不指定 (ALL) —</span>
+        <span style="color: #94a3b8; font-size: 12px;">▼</span>
+      </button>
     </div>
 
     <!-- Main Capture & Secondary Actions -->
@@ -150,6 +136,22 @@
       </div>
       <textarea id="edit-ocr-text" rows="2" style="width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #fff; font-size: 12px; padding: 6px; resize: vertical;"></textarea>
     </details>
+  </div>
+
+  <!-- Platform Selection Modal -->
+  <div class="modal hidden" id="platform-modal">
+    <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
+      <div class="modal-header" style="justify-content: center; position: relative;">
+        <h2 style="font-size: 16px; font-weight: 500;">選擇平台</h2>
+        <button id="btn-close-platform" style="position: absolute; right: 0; background:none; border:none; color:#94a3b8; font-size: 20px; cursor:pointer;">✕</button>
+      </div>
+      <div style="padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+        <input type="text" id="input-platform-search" placeholder="搜尋平台名稱..." style="width: 100%; padding: 10px 14px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 14px; outline: none;">
+      </div>
+      <div id="platform-list" style="overflow-y: auto; flex: 1; margin-top: 8px;">
+        <!-- Dynamically populated -->
+      </div>
+    </div>
   </div>
 
   <!-- Cart / Purchase List Modal -->

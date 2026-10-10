@@ -134,6 +134,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  let allPlatforms = [];
   function applyDatabase(data) {
     matcher.init(data);
     const count = matcher.games.length;
@@ -143,6 +144,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (dbSyncStatus) {
       dbSyncStatus.textContent = `當前版本：${count.toLocaleString()} 筆 (${dateStr})`;
     }
+    
+    allPlatforms = [...new Set(matcher.games.map(g => g.platform))].filter(Boolean);
+    allPlatforms.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+    if (!allPlatforms.includes('書籍')) allPlatforms.push('書籍');
+    if (!allPlatforms.includes('攻略')) allPlatforms.push('攻略');
+    renderPlatformList();
   }
 
   // GitHub Sync Function
@@ -524,11 +531,66 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnSound.classList.toggle('active', soundEnabled);
   });
 
-  // Platform chips
-  const platformSelect = document.getElementById('platform-select');
-  platformSelect.addEventListener('change', (e) => {
-    currentPlatform = e.target.value;
-  });
+  // Platform Modal UI Logic
+  const btnOpenPlatform = document.getElementById('btn-open-platform');
+  const platformModal = document.getElementById('platform-modal');
+  const btnClosePlatform = document.getElementById('btn-close-platform');
+  const inputPlatformSearch = document.getElementById('input-platform-search');
+  const platformList = document.getElementById('platform-list');
+  const currentPlatformText = document.getElementById('current-platform-text');
+
+  window.renderPlatformList = function(filterText = '') {
+    if (!platformList) return;
+    platformList.innerHTML = '';
+    
+    const term = filterText.toLowerCase();
+    
+    // Always add "ALL"
+    if ('all'.includes(term) || '不指定'.includes(term)) {
+      const allItem = document.createElement('div');
+      allItem.className = 'platform-item special';
+      allItem.textContent = '— 不指定 (ALL) —';
+      allItem.onclick = () => selectPlatform('ALL', '— 不指定 (ALL) —');
+      platformList.appendChild(allItem);
+    }
+
+    allPlatforms.forEach(p => {
+      if (p.toLowerCase().includes(term)) {
+        const item = document.createElement('div');
+        item.className = 'platform-item';
+        item.textContent = p;
+        item.onclick = () => selectPlatform(p, p);
+        platformList.appendChild(item);
+      }
+    });
+  };
+
+  function selectPlatform(val, display) {
+    currentPlatform = val;
+    if (currentPlatformText) currentPlatformText.textContent = display;
+    if (platformModal) platformModal.classList.add('hidden');
+  }
+
+  if (btnOpenPlatform) {
+    btnOpenPlatform.addEventListener('click', () => {
+      inputPlatformSearch.value = '';
+      renderPlatformList();
+      platformModal.classList.remove('hidden');
+      setTimeout(() => inputPlatformSearch.focus(), 100);
+    });
+  }
+
+  if (btnClosePlatform) {
+    btnClosePlatform.addEventListener('click', () => {
+      platformModal.classList.add('hidden');
+    });
+  }
+
+  if (inputPlatformSearch) {
+    inputPlatformSearch.addEventListener('input', (e) => {
+      renderPlatformList(e.target.value);
+    });
+  }
 
   // Search input debounce
   let searchTimer = null;
