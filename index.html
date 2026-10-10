@@ -140,13 +140,13 @@
     </div>
 
     <!-- Raw OCR Debug & Instant Correction -->
-    <div style="margin-bottom: 12px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 8px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-        <span style="font-size: 11px; color: #94a3b8;">辨識解析文字（點擊可直接修正比對）：</span>
-        <button id="btn-re-match" style="background: var(--accent-cyan); color: #0b0f19; border: none; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; cursor: pointer;">重新比對</button>
+    <details style="margin-bottom: 12px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 8px;">
+      <summary style="font-size: 13px; font-weight: 500; color: #94a3b8; cursor: pointer; user-select: none;">🔍 展開原始辨識文字 (除錯/修改比對)</summary>
+      <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 4px; margin-top: 8px;">
+        <button id="btn-re-match" style="background: var(--accent-cyan); color: #0b0f19; border: none; font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 4px; cursor: pointer;">重新比對</button>
       </div>
-      <textarea id="edit-ocr-text" rows="2" style="width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #fff; font-size: 12px; padding: 6px; resize: none;"></textarea>
-    </div>
+      <textarea id="edit-ocr-text" rows="2" style="width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #fff; font-size: 12px; padding: 6px; resize: vertical;"></textarea>
+    </details>
   </div>
 
   <!-- Cart / Purchase List Modal -->

@@ -331,7 +331,9 @@ body {
   bottom: 0;
   left: 0;
   right: 0;
-  background: var(--bg-surface);
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-top-left-radius: 24px;
   border-top-right-radius: 24px;
   box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.7);
