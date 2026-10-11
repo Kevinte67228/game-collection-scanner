@@ -138,6 +138,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (dbSyncStatus) {
       dbSyncStatus.textContent = `當前版本：${count.toLocaleString()} 筆 (${dateStr})`;
     }
+    if (currentPlatform === 'ALL' && currentPlatformText) {
+      currentPlatformText.textContent = `— 不指定 (ALL) · 共 ${count.toLocaleString()} 筆 —`;
+    }
     
     // 嚴格對照線上檔案：優先使用 data.platforms，若無則從 games 中的 platform 動態統計
     if (Array.isArray(data.platforms) && data.platforms.length > 0) {
@@ -545,18 +548,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     platformList.innerHTML = '';
     
     const term = (filterText || '').toLowerCase().trim();
+    const totalCount = matcher.games ? matcher.games.length : 0;
+    
+    // 計算各平台遊戲數量
+    const platformCounts = {};
+    if (matcher.games) {
+      matcher.games.forEach(g => {
+        if (g.platform) {
+          platformCounts[g.platform] = (platformCounts[g.platform] || 0) + 1;
+        }
+      });
+    }
     
     if (!term || 'all'.includes(term) || '不指定'.includes(term) || '全部'.includes(term)) {
       const allItem = document.createElement('div');
       allItem.className = 'platform-item special';
+      const allText = `— 不指定 (ALL) · 全庫共 ${totalCount.toLocaleString()} 筆 —`;
       if (currentPlatform === 'ALL') {
         allItem.style.color = '#38bdf8';
         allItem.style.fontWeight = '700';
-        allItem.textContent = '— 不指定 (ALL) —  ✓';
+        allItem.textContent = `${allText}  ✓`;
       } else {
-        allItem.textContent = '— 不指定 (ALL) —';
+        allItem.textContent = allText;
       }
-      allItem.onclick = () => selectPlatform('ALL', '— 不指定 (ALL) —');
+      allItem.onclick = () => selectPlatform('ALL', allText);
       platformList.appendChild(allItem);
     }
 
@@ -564,14 +579,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (!term || p.toLowerCase().includes(term)) {
         const item = document.createElement('div');
         item.className = 'platform-item';
+        const pCount = (platformCounts[p] || 0).toLocaleString();
+        const pText = `${p} (${pCount} 筆)`;
         if (p === currentPlatform) {
           item.style.color = '#38bdf8';
           item.style.fontWeight = '700';
-          item.textContent = `${p}  ✓`;
+          item.textContent = `${pText}  ✓`;
         } else {
-          item.textContent = p;
+          item.textContent = pText;
         }
-        item.onclick = () => selectPlatform(p, p);
+        item.onclick = () => selectPlatform(p, pText);
         platformList.appendChild(item);
       }
     });
