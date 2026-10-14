@@ -273,9 +273,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Audio Feedback (Web Audio API)
-  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  // ⚠️ 必須用 try/catch：iOS Safari 在無用戶手勢時建立 AudioContext 會拋出 NotAllowedError
+  // 若不捕捉，整個 async DOMContentLoaded 函數會崩潰，導致所有按鈕失效
+  let audioCtx = null;
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  } catch (e) {
+    console.warn('[App] AudioContext creation failed (will retry on first touch):', e);
+  }
   let audioUnlocked = false;
   function unlockAudio() {
+    if (!audioCtx) {
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      } catch (e) {
+        console.warn('[App] AudioContext still unavailable:', e);
+        return;
+      }
+    }
     if (!audioUnlocked && audioCtx.state === 'suspended') {
       audioCtx.resume().then(() => { audioUnlocked = true; });
     }
@@ -283,7 +298,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   ['touchstart', 'touchend', 'click'].forEach(e => document.body.addEventListener(e, unlockAudio, { once: true }));
 
   function playTone(type) {
-    if (!soundEnabled) return;
+    if (!soundEnabled || !audioCtx) return;
     try {
       if (audioCtx.state === 'suspended') audioCtx.resume();
       const osc = audioCtx.createOscillator();
