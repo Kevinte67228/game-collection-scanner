@@ -65,19 +65,37 @@ class OcrEngine {
   async recognize(imageDataUrl, onProgress, isVertical = false) {
     // 1. 純私有 Umi-OCR 伺服器
     if (this.preferredEngine === 'umi') {
-      if (onProgress) onProgress('正在呼叫私有 Umi-OCR 辨識書背...');
-      return await this.recognizeWithUmi(imageDataUrl);
+      try {
+        if (onProgress) onProgress('正在呼叫私有 Umi-OCR 辨識書背...');
+        return await this.recognizeWithUmi(imageDataUrl);
+      } catch (err) {
+        console.warn('[OcrEngine] Umi-OCR failed, falling back:', err);
+        if (this.geminiApiKey) {
+          if (onProgress) onProgress('⚠️ Umi-OCR 連線失敗，自動改用 Gemini 辨識...');
+          return await this.recognizeWithGemini(imageDataUrl, isVertical);
+        }
+        throw new Error(`Umi-OCR 伺服器未啟動或無法連線 (${err.message})。若在戶外手機使用，請在右上角⚙️設定將引擎切換為「Gemini」`);
+      }
     }
 
     // 2. 混合增強模式 (Umi-OCR 識字 + Gemini 翻中與結構化)
     if (this.preferredEngine === 'hybrid') {
-      if (onProgress) onProgress('正在透過 Umi-OCR 抓取精確字元...');
-      const umiRes = await this.recognizeWithUmi(imageDataUrl);
-      if (this.geminiApiKey) {
-        if (onProgress) onProgress('正在透過 Gemini 深度比對與日翻中...');
-        return await this.refineWithGemini(umiRes.rawText, imageDataUrl);
+      try {
+        if (onProgress) onProgress('正在透過 Umi-OCR 抓取精確字元...');
+        const umiRes = await this.recognizeWithUmi(imageDataUrl);
+        if (this.geminiApiKey) {
+          if (onProgress) onProgress('正在透過 Gemini 深度比對與日翻中...');
+          return await this.refineWithGemini(umiRes.rawText, imageDataUrl);
+        }
+        return umiRes;
+      } catch (err) {
+        console.warn('[OcrEngine] Umi-OCR hybrid step failed, falling back to pure Gemini:', err);
+        if (this.geminiApiKey) {
+          if (onProgress) onProgress('⚠️ Umi-OCR 連線失敗，自動切換至純 Gemini 辨識...');
+          return await this.recognizeWithGemini(imageDataUrl, isVertical);
+        }
+        throw new Error(`無法連線到本機 Umi-OCR (${err.message})。請至右上角⚙️切換為 Gemini 引擎。`);
       }
-      return umiRes;
     }
 
     // 3. 預設：Gemini 2.5 Flash 視覺多模態 (日翻中 + 電玩實體理解)
