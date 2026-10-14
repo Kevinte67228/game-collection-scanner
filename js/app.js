@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const fileInput = document.getElementById('file-input');
   const btnTorch = document.getElementById('btn-torch');
   const btnOrient = document.getElementById('btn-orient');
+  const btnBackHome = document.getElementById('btn-back-home');
   const btnSyncGithub = document.getElementById('btn-sync-github');
   const btnCart = document.getElementById('btn-cart');
   const cartBadge = document.getElementById('cart-badge');
@@ -771,4 +772,83 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnSound.textContent = soundEnabled ? '🔔' : '🔕';
     settingsModal.classList.add('hidden');
   });
+
+  // 8. 導航與返回管理 (支援手機實體/手勢返回鍵防誤觸，以及專用返回按鈕)
+  function closeActiveLayers() {
+    let closedSomething = false;
+    if (resultSheet && resultSheet.classList.contains('open')) {
+      resultSheet.classList.remove('open');
+      closedSomething = true;
+    }
+    if (platformModal && !platformModal.classList.contains('hidden')) {
+      platformModal.classList.add('hidden');
+      closedSomething = true;
+    }
+    if (cartModal && !cartModal.classList.contains('hidden')) {
+      cartModal.classList.add('hidden');
+      closedSomething = true;
+    }
+    if (settingsModal && !settingsModal.classList.contains('hidden')) {
+      settingsModal.classList.add('hidden');
+      closedSomething = true;
+    }
+    if (searchInput && searchInput.value) {
+      searchInput.value = '';
+      searchClear.style.display = 'none';
+      closedSomething = true;
+    }
+    updateBackButtonVisibility();
+    return closedSomething;
+  }
+
+  function updateBackButtonVisibility() {
+    if (!btnBackHome) return;
+    const isLayerOpen = (resultSheet && resultSheet.classList.contains('open')) ||
+                        (platformModal && !platformModal.classList.contains('hidden')) ||
+                        (cartModal && !cartModal.classList.contains('hidden')) ||
+                        (settingsModal && !settingsModal.classList.contains('hidden')) ||
+                        (searchInput && searchInput.value.trim().length > 0);
+    btnBackHome.style.display = isLayerOpen ? 'inline-flex' : 'none';
+  }
+
+  // 點擊頂部返回按鈕：優先關閉目前彈窗/搜尋；若已在主畫面則詢問是否離開
+  if (btnBackHome) {
+    btnBackHome.addEventListener('click', () => {
+      const closed = closeActiveLayers();
+      if (!closed) {
+        if (confirm('確定要離開書背查重 App 嗎？')) {
+          window.history.back();
+        }
+      }
+    });
+  }
+
+  // 監聽各層開啟/關閉狀態以顯示/隱藏返回鍵
+  const observer = new MutationObserver(() => updateBackButtonVisibility());
+  [resultSheet, platformModal, cartModal, settingsModal].forEach(el => {
+    if (el) observer.observe(el, { attributes: true, attributeFilter: ['class', 'style'] });
+  });
+  if (searchInput) {
+    searchInput.addEventListener('input', () => updateBackButtonVisibility());
+  }
+
+  // 手機系統返回鍵 (History PopState 防誤觸攔截)
+  window.history.pushState({ page: 'pwa_main' }, '');
+  window.addEventListener('popstate', (e) => {
+    // 1. 若有任何開啟的彈窗、結果表、或搜尋字串，先關閉它們，留在主畫面
+    const closed = closeActiveLayers();
+    if (closed) {
+      window.history.pushState({ page: 'pwa_main' }, '');
+      return;
+    }
+
+    // 2. 若已經在主畫面，跳出確認視窗防誤觸跳出
+    const confirmLeave = confirm('確定要離開書背查重 App 嗎？');
+    if (confirmLeave) {
+      window.history.back();
+    } else {
+      window.history.pushState({ page: 'pwa_main' }, '');
+    }
+  });
 });
+
