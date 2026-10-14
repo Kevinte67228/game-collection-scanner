@@ -60,6 +60,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnSaveSettings = document.getElementById('btn-save-settings');
   const selectEngine = document.getElementById('select-engine');
   const inputGeminiKey = document.getElementById('input-gemini-key');
+  const inputUmiUrl = document.getElementById('input-umi-url');
   const checkVibration = document.getElementById('check-vibration');
   const checkSound = document.getElementById('check-sound');
   const inputGithubUrl = document.getElementById('input-github-url');
@@ -683,6 +684,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   btnSettings.addEventListener('click', () => {
     selectEngine.value = ocr.preferredEngine;
     inputGeminiKey.value = ocr.geminiApiKey;
+    if (inputUmiUrl) inputUmiUrl.value = ocr.umiOcrUrl;
     checkVibration.checked = vibrationEnabled;
     checkSound.checked = soundEnabled;
     inputGithubUrl.value = currentGithubUrl;
@@ -740,6 +742,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   btnSaveSettings.addEventListener('click', () => {
     ocr.setPreferredEngine(selectEngine.value);
     ocr.setGeminiApiKey(inputGeminiKey.value);
+    if (inputUmiUrl) ocr.setUmiOcrUrl(inputUmiUrl.value);
     vibrationEnabled = checkVibration.checked;
     soundEnabled = checkSound.checked;
     currentGithubUrl = inputGithubUrl.value.trim() || DEFAULT_GITHUB_URL;

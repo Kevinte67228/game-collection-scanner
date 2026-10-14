@@ -203,8 +203,10 @@
       <div class="form-group">
         <label>OCR 辨識引擎</label>
         <select id="select-engine">
-          <option value="gemini">Google Gemini Flash (雲端極速 + 日翻中 推薦)</option>
-          <option value="tesseract">離線 Tesseract (無網路備援 / 免金鑰)</option>
+          <option value="gemini">Google Gemini Flash (雲端視覺 + 日翻中 推薦)</option>
+          <option value="hybrid">雙引擎混合 (Umi-OCR 識字 + Gemini 翻中 極致精度)</option>
+          <option value="umi">私有 Umi-OCR 伺服器 (家中電腦 / 內網穿透)</option>
+          <option value="tesseract">純離線 Tesseract (無網路備援 / 免金鑰)</option>
         </select>
       </div>
 
@@ -212,7 +214,14 @@
       <div class="form-group" id="gemini-key-group">
         <label>Gemini API Key</label>
         <input type="password" id="input-gemini-key" placeholder="貼上 Google AI Studio API Key">
-        <p style="font-size: 11px; color: #64748b; margin-top: 4px;">支援自動日翻中與藝術字側標辨識，安全存於本地。</p>
+        <p style="font-size: 11px; color: #64748b; margin-top: 4px;">支援自動日翻中與模糊比對，安全存於本地瀏覽器。</p>
+      </div>
+
+      <!-- Umi-OCR Server URL -->
+      <div class="form-group" id="umi-url-group">
+        <label>Umi-OCR 伺服器 API 網址</label>
+        <input type="text" id="input-umi-url" placeholder="http://127.0.0.1:1224/api/ocr 或穿透網址">
+        <p style="font-size: 11px; color: #64748b; margin-top: 4px;">家中電腦開啟 Umi-OCR 服務時使用，免網路費用。</p>
       </div>
 
       <!-- Sensory Feedback -->

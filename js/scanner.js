@@ -151,13 +151,13 @@ class CameraScanner {
   }
 
   /**
-   * 圖像前處理：自適應對比增強與降噪
+   * 圖像前處理：自適應對比增強與字體邊緣銳化
    */
   preprocessImage(width, height) {
     const imgData = this.ctx.getImageData(0, 0, width, height);
     const data = imgData.data;
 
-    // 溫和的對比度拉伸，避免反光過曝或黑字被吞噬
+    // 1. 直方圖分析亮度極值
     let minL = 255;
     let maxL = 0;
     for (let i = 0; i < data.length; i += 4) {
@@ -166,15 +166,33 @@ class CameraScanner {
       if (lum > maxL) maxL = lum;
     }
 
-    // 保留 5% 裕度防止噪點拉爆對比
-    const range = Math.max(40, maxL - minL);
+    // 2. 自適應對比度拉伸（保留原色彩特徵，強化明暗反差）
+    const range = Math.max(50, maxL - minL);
     for (let i = 0; i < data.length; i += 4) {
       const lum = (data[i] * 299 + data[i + 1] * 587 + data[i + 2] * 114) / 1000;
       const normalized = Math.min(255, Math.max(0, ((lum - minL) / range) * 255));
-      // 混合 70% 灰階增強與 30% 原色，保留彩色特徵
-      data[i] = Math.round(data[i] * 0.3 + normalized * 0.7);
-      data[i + 1] = Math.round(data[i + 1] * 0.3 + normalized * 0.7);
-      data[i + 2] = Math.round(data[i + 2] * 0.3 + normalized * 0.7);
+      // 保持 45% 原色 + 55% 增強灰階，兼顧 Gemini 彩色辨識與文字清晰度
+      data[i] = Math.round(data[i] * 0.45 + normalized * 0.55);
+      data[i + 1] = Math.round(data[i + 1] * 0.45 + normalized * 0.55);
+      data[i + 2] = Math.round(data[i + 2] * 0.45 + normalized * 0.55);
+    }
+
+    // 3. 快速銳化（加強細小商品編號與日文側標輪廓）
+    const copy = new Uint8ClampedArray(data);
+    const w = width;
+    const h = height;
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        const idx = (y * w + x) * 4;
+        for (let c = 0; c < 3; c++) {
+          const val = copy[idx + c] * 2.2
+            - copy[((y - 1) * w + x) * 4 + c] * 0.3
+            - copy[((y + 1) * w + x) * 4 + c] * 0.3
+            - copy[(y * w + (x - 1)) * 4 + c] * 0.3
+            - copy[(y * w + (x + 1)) * 4 + c] * 0.3;
+          data[idx + c] = Math.min(255, Math.max(0, val));
+        }
+      }
     }
 
     this.ctx.putImageData(imgData, 0, 0);
