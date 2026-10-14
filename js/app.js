@@ -69,6 +69,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnImportJsonTrigger = document.getElementById('btn-import-json-trigger');
   const importJsonInput = document.getElementById('import-json-input');
 
+  // Platform Modal Elements
+  const btnOpenPlatform = document.getElementById('btn-open-platform');
+  const platformModal = document.getElementById('platform-modal');
+  const btnClosePlatform = document.getElementById('btn-close-platform');
+  const inputPlatformSearch = document.getElementById('input-platform-search');
+  const platformList = document.getElementById('platform-list');
+  const currentPlatformText = document.getElementById('current-platform-text');
+
   // State
   let currentPlatform = 'ALL';
   let soundEnabled = localStorage.getItem('sound_enabled') !== 'false';
@@ -130,6 +138,64 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   let allPlatforms = [];
+
+  function selectPlatform(val, display) {
+    currentPlatform = val;
+    if (currentPlatformText) currentPlatformText.textContent = display.replace('  ✓', '');
+    if (platformModal) platformModal.classList.add('hidden');
+  }
+
+  function renderPlatformList(filterText = '') {
+    if (!platformList) return;
+    platformList.innerHTML = '';
+    
+    const term = (filterText || '').toLowerCase().trim();
+    const totalCount = matcher.games ? matcher.games.length : 0;
+    
+    // 計算各平台遊戲數量
+    const platformCounts = {};
+    if (matcher.games) {
+      matcher.games.forEach(g => {
+        if (g.platform) {
+          platformCounts[g.platform] = (platformCounts[g.platform] || 0) + 1;
+        }
+      });
+    }
+    
+    if (!term || 'all'.includes(term) || '不指定'.includes(term) || '全部'.includes(term)) {
+      const allItem = document.createElement('div');
+      allItem.className = 'platform-item special';
+      const allText = `— 不指定 (ALL) · 全庫共 ${totalCount.toLocaleString()} 筆 —`;
+      if (currentPlatform === 'ALL') {
+        allItem.style.color = '#38bdf8';
+        allItem.style.fontWeight = '700';
+        allItem.textContent = `${allText}  ✓`;
+      } else {
+        allItem.textContent = allText;
+      }
+      allItem.onclick = () => selectPlatform('ALL', allText);
+      platformList.appendChild(allItem);
+    }
+
+    allPlatforms.forEach(p => {
+      if (!term || p.toLowerCase().includes(term)) {
+        const item = document.createElement('div');
+        item.className = 'platform-item';
+        const pCount = (platformCounts[p] || 0).toLocaleString();
+        const pText = `${p} (${pCount} 筆)`;
+        if (p === currentPlatform) {
+          item.style.color = '#38bdf8';
+          item.style.fontWeight = '700';
+          item.textContent = `${pText}  ✓`;
+        } else {
+          item.textContent = pText;
+        }
+        item.onclick = () => selectPlatform(p, pText);
+        platformList.appendChild(item);
+      }
+    });
+  }
+
   function applyDatabase(data) {
     matcher.init(data);
     const count = matcher.games.length;
@@ -152,9 +218,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 嚴格按字母小到大排序 (A-Z)
     allPlatforms.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
     
-    if (typeof window.renderPlatformList === 'function') {
-      window.renderPlatformList();
-    }
+    renderPlatformList();
   }
 
   // GitHub Sync Function
@@ -195,7 +259,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  await loadDatabase();
+  try {
+    await loadDatabase();
+  } catch (err) {
+    console.error('[App] Initial loadDatabase failed:', err);
+  }
 
   // 3. Start Camera
   try {
@@ -536,71 +604,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnSound.classList.toggle('active', soundEnabled);
   });
 
-  // Platform Modal UI Logic
-  const btnOpenPlatform = document.getElementById('btn-open-platform');
-  const platformModal = document.getElementById('platform-modal');
-  const btnClosePlatform = document.getElementById('btn-close-platform');
-  const inputPlatformSearch = document.getElementById('input-platform-search');
-  const platformList = document.getElementById('platform-list');
-  const currentPlatformText = document.getElementById('current-platform-text');
-
-  function renderPlatformList(filterText = '') {
-    if (!platformList) return;
-    platformList.innerHTML = '';
-    
-    const term = (filterText || '').toLowerCase().trim();
-    const totalCount = matcher.games ? matcher.games.length : 0;
-    
-    // 計算各平台遊戲數量
-    const platformCounts = {};
-    if (matcher.games) {
-      matcher.games.forEach(g => {
-        if (g.platform) {
-          platformCounts[g.platform] = (platformCounts[g.platform] || 0) + 1;
-        }
-      });
-    }
-    
-    if (!term || 'all'.includes(term) || '不指定'.includes(term) || '全部'.includes(term)) {
-      const allItem = document.createElement('div');
-      allItem.className = 'platform-item special';
-      const allText = `— 不指定 (ALL) · 全庫共 ${totalCount.toLocaleString()} 筆 —`;
-      if (currentPlatform === 'ALL') {
-        allItem.style.color = '#38bdf8';
-        allItem.style.fontWeight = '700';
-        allItem.textContent = `${allText}  ✓`;
-      } else {
-        allItem.textContent = allText;
-      }
-      allItem.onclick = () => selectPlatform('ALL', allText);
-      platformList.appendChild(allItem);
-    }
-
-    allPlatforms.forEach(p => {
-      if (!term || p.toLowerCase().includes(term)) {
-        const item = document.createElement('div');
-        item.className = 'platform-item';
-        const pCount = (platformCounts[p] || 0).toLocaleString();
-        const pText = `${p} (${pCount} 筆)`;
-        if (p === currentPlatform) {
-          item.style.color = '#38bdf8';
-          item.style.fontWeight = '700';
-          item.textContent = `${pText}  ✓`;
-        } else {
-          item.textContent = pText;
-        }
-        item.onclick = () => selectPlatform(p, pText);
-        platformList.appendChild(item);
-      }
-    });
-  }
-  window.renderPlatformList = renderPlatformList;
-
-  function selectPlatform(val, display) {
-    currentPlatform = val;
-    if (currentPlatformText) currentPlatformText.textContent = display.replace('  ✓', '');
-    if (platformModal) platformModal.classList.add('hidden');
-  }
+  // Platform Modal Events
 
   if (btnOpenPlatform) {
     btnOpenPlatform.addEventListener('click', () => {
