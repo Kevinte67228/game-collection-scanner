@@ -17,11 +17,7 @@
   <header class="app-header">
     <div class="brand">
       <button class="btn-icon" id="btn-back-home" title="返回主畫面" style="display: none; margin-right: 2px; font-size: 16px;">◀</button>
-      <img src="icons/icon-192.png" alt="App Icon" class="brand-icon">
-      <div class="brand-text">
-        <h1>書背查重</h1>
-      </div>
-      <span class="database-badge" id="db-badge">載入中...</span>
+      <span class="database-badge" id="db-badge" style="font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 6px;">載入中...</span>
     </div>
     <div class="header-actions">
       <button class="btn-icon" id="btn-sync-github" title="從 GitHub 同步最新資料庫">🔄</button>
@@ -237,9 +233,10 @@
       </div>
 
       <!-- DB Status Info -->
-      <div class="form-group">
-        <label>當前遊戲庫資訊</label>
-        <p style="font-size: 12px; color: #38bdf8;" id="db-info">載入中...</p>
+      <div class="form-group" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 10px; border-radius: 8px;">
+        <label>當前遊戲庫與程式版本</label>
+        <p style="font-size: 13px; font-weight: 600; color: #38bdf8;" id="db-info">載入中...</p>
+        <p style="font-size: 11px; color: #94a3b8; margin-top: 4px;">PWA 核心版本號：<span id="app-version" style="color: #a7f3d0; font-weight: 600;">v1.8.7</span></p>
       </div>
 
       <button class="btn-primary" id="btn-save-settings">儲存設定並套用</button>
