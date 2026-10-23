@@ -86,6 +86,11 @@ class GameMatcher {
       .trim();
   }
 
+  isBookOrGuide(platform) {
+    const p = (platform || '').toUpperCase();
+    return p.includes('GUIDE') || p.includes('BOOK');
+  }
+
   cleanCatalog(str) {
     if (!str) return '';
     return str.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -156,6 +161,9 @@ class GameMatcher {
       .replace(/[^一-龠ぁ-ゔァ-ヴーa-zA-Z0-9\u4e00-\u9fa5]/g, '');
 
     if (cleanJp.length >= 2) {
+      // 搜尋所有符合條件的候選項目，而非第一筆就直接 return
+      const candidates = [];
+
       for (const game of (this.gamesSortedByLength || this.games)) {
         if (targetPlatform !== 'ALL' && game.platform !== targetPlatform) {
           continue;
@@ -171,28 +179,76 @@ class GameMatcher {
         const enSuffix1 = gameTitleEn.length >= 5 ? gameTitleEn.slice(1) : '';
         const zhSuffix1 = gameTitleZh.length >= 4 ? gameTitleZh.slice(1) : '';
 
-        if (
+        // 計算匹配類型與吻合度
+        // 1: 完全相等 (Exact Match)
+        // 2: 遊戲標題是以輸入文字為開頭 (Prefix match, 如輸入 "天地を喰らうII"，遊戲是 "天地を喰らうII 諸葛孔明伝") -> 高精準鎖定續作或完整名稱
+        // 3: 輸入文字是以該遊戲標題為開頭 (Prefix match, 如輸入 "天地を喰らう 必勝攻略法"，遊戲是 "天地を喰らう")
+        // 4: 一般包含 (Substring)
+        // 5: 缺頭容錯
+        let matchRank = 0;
+
+        if (cleanJp === gameTitleJp || cleanJp === gameTitleZh || cleanJp === gameTitleEn) {
+          matchRank = 1;
+        } else if (
+          (cleanJp.length >= 3 && gameTitleJp.startsWith(cleanJp)) ||
+          (cleanJp.length >= 2 && gameTitleZh.startsWith(cleanJp)) ||
+          (cleanJp.length >= 4 && gameTitleEn.startsWith(cleanJp))
+        ) {
+          matchRank = 2;
+        } else if (
+          (gameTitleJp.length >= 3 && cleanJp.startsWith(gameTitleJp)) ||
+          (gameTitleZh.length >= 2 && cleanJp.startsWith(gameTitleZh)) ||
+          (gameTitleEn.length >= 4 && cleanJp.startsWith(gameTitleEn))
+        ) {
+          matchRank = 3;
+        } else if (
           (gameTitleJp.length >= 3 && cleanJp.includes(gameTitleJp)) ||
           (gameTitleZh.length >= 2 && cleanJp.includes(gameTitleZh)) ||
           (gameTitleEn.length >= 4 && cleanJp.includes(gameTitleEn)) ||
-          (cleanJp.length >= 3 && (gameTitleJp.includes(cleanJp) || gameTitleZh.includes(cleanJp) || gameTitleEn.includes(cleanJp))) ||
+          (cleanJp.length >= 3 && (gameTitleJp.includes(cleanJp) || gameTitleZh.includes(cleanJp) || gameTitleEn.includes(cleanJp)))
+        ) {
+          matchRank = 4;
+        } else if (
           (jpSuffix1.length >= 4 && cleanJp.includes(jpSuffix1)) ||
           (jpSuffix2.length >= 4 && cleanJp.includes(jpSuffix2)) ||
           (zhSuffix1.length >= 3 && cleanJp.includes(zhSuffix1)) ||
           (enSuffix1.length >= 4 && cleanJp.includes(enSuffix1))
         ) {
-          const related = this.findRelated(game);
-          const displayMatchTitle = game.title_zh || game.title_jp;
-          return {
-            status: 'OWNED',
-            type: 'SUBSTRING_TITLE',
-            confidence: 0.88,
-            matchedCatalog: game.catalog,
-            game: game,
-            relatedGames: related,
-            message: `【已收藏】標題《${displayMatchTitle}》比對吻合！`
-          };
+          matchRank = 5;
         }
+
+        if (matchRank > 0) {
+          // 標記是否為攻略本或書籍 (遊戲本體優先度高於書籍)
+          const isBook = this.isBookOrGuide(game.platform);
+          candidates.push({ game, matchRank, isBook });
+        }
+      }
+
+      if (candidates.length > 0) {
+        // 排序規則：
+        // 1. 完全相等 (matchRank=1) 優先於 開頭前綴匹配 (matchRank=2, 3) 優先於 一般包含 (matchRank=4, 5)
+        // 2. 當指定 ALL 時，遊戲本體 (!isBook) 優先於 攻略本/書籍 (isBook)
+        // 3. 在同一等級中，標題長度與輸入字數最接近者優先 (差異最小)
+        candidates.sort((a, b) => {
+          if (a.matchRank !== b.matchRank) return a.matchRank - b.matchRank;
+          if (a.isBook !== b.isBook) return a.isBook ? 1 : -1;
+          const lenDiffA = Math.abs((a.game.title_jp?.length || 0) - cleanJp.length);
+          const lenDiffB = Math.abs((b.game.title_jp?.length || 0) - cleanJp.length);
+          return lenDiffA - lenDiffB;
+        });
+
+        const bestGame = candidates[0].game;
+        const related = this.findRelated(bestGame);
+        const displayMatchTitle = bestGame.title_zh || bestGame.title_jp;
+        return {
+          status: 'OWNED',
+          type: 'SUBSTRING_TITLE',
+          confidence: candidates[0].matchRank === 1 ? 0.98 : 0.88,
+          matchedCatalog: bestGame.catalog,
+          game: bestGame,
+          relatedGames: related,
+          message: `【已收藏】標題《${displayMatchTitle}》比對吻合！`
+        };
       }
     }
 
@@ -277,14 +333,17 @@ class GameMatcher {
     const baseTitle = this.normalize(game.title_jp || game.title_zh || game.title_en);
     if (!baseTitle || baseTitle.length < 2) return [];
 
+    const normZh = this.normalize(game.title_zh);
+
     return this.games.filter(g => {
       if (g.id === game.id) return false;
       const otherTitle = this.normalize(g.title_jp || g.title_zh || g.title_en);
-      return (
-        otherTitle.includes(baseTitle) || 
-        baseTitle.includes(otherTitle) ||
-        (game.title_zh && g.title_zh && g.title_zh === game.title_zh)
-      );
+      const otherZh = this.normalize(g.title_zh);
+
+      const hasTitleOverlap = otherTitle.includes(baseTitle) || baseTitle.includes(otherTitle);
+      const hasExactZh = (normZh && normZh.length >= 4 && otherZh === normZh);
+
+      return hasTitleOverlap || hasExactZh;
     }).slice(0, 5);
   }
 }
