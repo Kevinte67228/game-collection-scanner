@@ -201,7 +201,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     matcher.init(data);
     const count = matcher.games.length;
     const dateStr = data.generated_at || '最新版';
-    dbBadge.textContent = `全庫 ${count.toLocaleString()} 款已就緒`;
+    dbBadge.textContent = `${count.toLocaleString()} 筆`;
     dbInfo.textContent = `共載入 ${count.toLocaleString()} 筆遊戲收藏（更新日期：${dateStr}）`;
     if (dbSyncStatus) {
       dbSyncStatus.textContent = `當前版本：${count.toLocaleString()} 筆 (${dateStr})`;
