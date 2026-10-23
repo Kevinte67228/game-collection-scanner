@@ -1,4 +1,4 @@
-const CACHE_NAME = 'game-scanner-v1.8.9';
+const CACHE_NAME = 'game-scanner-v1.8.10';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

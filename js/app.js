@@ -458,6 +458,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Related Games
     if (res.relatedGames && res.relatedGames.length > 0) {
       relatedSection.style.display = 'block';
+      const relatedTitleEl = relatedSection.querySelector('h3');
+      if (relatedTitleEl) {
+        relatedTitleEl.textContent = `相關或其它主機版本 (${res.relatedGames.length} 筆)：`;
+      }
       for (const rel of res.relatedGames) {
         const item = document.createElement('div');
         item.className = 'related-item';

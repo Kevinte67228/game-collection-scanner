@@ -390,7 +390,8 @@ class GameMatcher {
       return 0;
     });
 
-    return scored.slice(0, 15).map(s => s.game);
+    // 不設上限，完整列出所有相關收藏作品
+    return scored.map(s => s.game);
   }
 }
 
