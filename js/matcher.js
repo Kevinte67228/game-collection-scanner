@@ -238,7 +238,9 @@ class GameMatcher {
         });
 
         const bestGame = candidates[0].game;
-        const related = this.findRelated(bestGame);
+        // 將候選名單與搜尋字串傳入 findRelated，確保同樣包含關鍵字的作品（如天地無用、天地を喰らう）都能在下方清單列出
+        const candidateGames = candidates.map(c => c.game);
+        const related = this.findRelated(bestGame, text, candidateGames);
         const displayMatchTitle = bestGame.title_zh || bestGame.title_jp;
         return {
           status: 'OWNED',
@@ -326,25 +328,69 @@ class GameMatcher {
   }
 
   /**
-   * 找尋不同平台或相同作品的系列作
+   * 找尋不同平台或相同作品的系列作（支援關鍵字聯想）
    */
-  findRelated(game) {
+  findRelated(game, searchQuery = '', candidateList = []) {
     if (!game) return [];
     const baseTitle = this.normalize(game.title_jp || game.title_zh || game.title_en);
-    if (!baseTitle || baseTitle.length < 2) return [];
-
     const normZh = this.normalize(game.title_zh);
+    const normQuery = this.normalize(searchQuery);
 
-    return this.games.filter(g => {
-      if (g.id === game.id) return false;
-      const otherTitle = this.normalize(g.title_jp || g.title_zh || g.title_en);
+    const scored = [];
+    const seenIds = new Set([game.id]);
+
+    // 1. 若有傳入同時命中的候選遊戲（例如搜尋「天地」，天地無用、天地を喰らう皆有命中）
+    if (Array.isArray(candidateList)) {
+      for (const cand of candidateList) {
+        if (!seenIds.has(cand.id)) {
+          seenIds.add(cand.id);
+          scored.push({
+            game: cand,
+            priority: 2,
+            isBook: this.isBookOrGuide(cand.platform)
+          });
+        }
+      }
+    }
+
+    // 2. 全庫遍歷找關聯系列作或同關鍵字作品
+    for (const g of this.games) {
+      if (seenIds.has(g.id)) continue;
+
+      const otherJp = this.normalize(g.title_jp);
       const otherZh = this.normalize(g.title_zh);
+      const otherEn = this.normalize(g.title_en);
+      const otherTitle = this.normalize(g.title_jp || g.title_zh || g.title_en);
 
-      const hasTitleOverlap = otherTitle.includes(baseTitle) || baseTitle.includes(otherTitle);
+      // (A) 系列作品或跨平台版本 (標題高度交集或繁中譯名完全相同)
+      const hasSeriesOverlap = (baseTitle && otherTitle && (otherTitle.includes(baseTitle) || baseTitle.includes(otherTitle)));
       const hasExactZh = (normZh && normZh.length >= 4 && otherZh === normZh);
 
-      return hasTitleOverlap || hasExactZh;
-    }).slice(0, 5);
+      // (B) 符合使用者當前搜尋詞 (例如 '天地')
+      const matchesQuery = (normQuery && normQuery.length >= 2 && (otherJp.includes(normQuery) || otherZh.includes(normQuery) || otherEn.includes(normQuery)));
+
+      if (hasSeriesOverlap || hasExactZh || matchesQuery) {
+        let priority = 3;
+        if (hasSeriesOverlap || hasExactZh) priority = 1;
+        else if (matchesQuery) priority = 2;
+
+        seenIds.add(g.id);
+        scored.push({
+          game: g,
+          priority,
+          isBook: this.isBookOrGuide(g.platform)
+        });
+      }
+    }
+
+    // 排序：系列直接關聯 (priority=1) > 同關鍵字搜尋結果 (priority=2) > 遊戲優先於書籍
+    scored.sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      if (a.isBook !== b.isBook) return a.isBook ? 1 : -1;
+      return 0;
+    });
+
+    return scored.slice(0, 8).map(s => s.game);
   }
 }
 
