@@ -461,13 +461,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       for (const rel of res.relatedGames) {
         const item = document.createElement('div');
         item.className = 'related-item';
+        item.style.cursor = 'pointer';
         item.innerHTML = `
-          <div>
+          <div style="flex: 1; padding-right: 8px;">
             <strong>[${rel.platform}]</strong> ${rel.title_zh || rel.title_jp}
-            <span style="color: #64748b; margin-left: 6px;">${rel.catalog || ''}</span>
+            <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">${rel.title_jp !== rel.title_zh ? rel.title_jp : ''} <span style="color: #64748b;">${rel.catalog || ''}</span></div>
           </div>
-          <span style="color: #38bdf8;">No. ${rel.no}</span>
+          <span style="color: #38bdf8; font-weight: 600; white-space: nowrap;">No. ${rel.no}</span>
         `;
+        // 點擊相關版本可直接切換檢視該款卡片
+        item.addEventListener('click', () => {
+          fillGameCard(rel);
+          lastScannedItem = { ...rel, isOwned: true };
+          resultSheet.scrollTo({ top: 0, behavior: 'smooth' });
+        });
         relatedList.appendChild(item);
       }
     }

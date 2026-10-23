@@ -390,7 +390,7 @@ class GameMatcher {
       return 0;
     });
 
-    return scored.slice(0, 8).map(s => s.game);
+    return scored.slice(0, 15).map(s => s.game);
   }
 }
 
