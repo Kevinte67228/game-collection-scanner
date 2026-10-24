@@ -16,8 +16,9 @@
   <!-- Header -->
   <header class="app-header">
     <div class="brand">
-      <button class="btn-icon" id="btn-back-home" title="返回主畫面" style="display: none; margin-right: 2px; font-size: 16px;">◀</button>
-      <span class="database-badge" id="db-badge" style="font-size: 14px; font-weight: 700; padding: 4px 10px; border-radius: 6px; letter-spacing: 0.5px;">-- 筆</span>
+      <button class="btn-icon" id="btn-back-home" title="返回主畫面" style="display: none; width: 32px; height: 32px; font-size: 14px;">◀</button>
+      <span class="version-badge" id="header-version">v1.9.1</span>
+      <span class="database-badge" id="db-badge">-- 筆</span>
     </div>
     <div class="header-actions">
       <button class="btn-icon" id="btn-sync-github" title="從 GitHub 同步最新資料庫">🔄</button>
@@ -188,12 +189,23 @@
 
       <!-- Backup / Restore -->
       <div class="form-group">
-        <label>資料庫備份與手動匯入</label>
+        <label>資料庫備份與手動匯入 (games.json)</label>
         <div style="display: flex; gap: 6px;">
           <button id="btn-export-json" class="btn-secondary-action" style="flex: 1; font-size: 11px; height: 36px;">📥 下載資料備份</button>
           <button id="btn-import-json-trigger" class="btn-secondary-action" style="flex: 1; font-size: 11px; height: 36px;">📤 匯入本機 JSON</button>
           <input type="file" id="import-json-input" accept=".json" style="display: none;">
         </div>
+      </div>
+
+      <!-- Settings Export / Import -->
+      <div class="form-group" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); padding: 10px; border-radius: 8px;">
+        <label style="color: #34d399; font-weight: 700;">⚙️ 系統設定匯出與匯入 (含 API Key / 網址)</label>
+        <div style="display: flex; gap: 6px; margin-top: 6px;">
+          <button id="btn-export-settings" class="btn-secondary-action" style="flex: 1; font-size: 11px; height: 36px; border-color: rgba(16, 185, 129, 0.4);">📤 匯出設定檔</button>
+          <button id="btn-import-settings-trigger" class="btn-secondary-action" style="flex: 1; font-size: 11px; height: 36px; border-color: rgba(16, 185, 129, 0.4);">📥 匯入設定檔</button>
+          <input type="file" id="import-settings-input" accept=".json" style="display: none;">
+        </div>
+        <p style="font-size: 11px; color: #94a3b8; margin-top: 4px;">一鍵備份或還原 API Key、Umi-OCR 網址、引擎與感官設定。</p>
       </div>
 
       <!-- OCR Engine -->
@@ -236,7 +248,7 @@
       <div class="form-group" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 10px; border-radius: 8px;">
         <label>當前遊戲庫與程式版本</label>
         <p style="font-size: 13px; font-weight: 600; color: #38bdf8;" id="db-info">載入中...</p>
-        <p style="font-size: 11px; color: #94a3b8; margin-top: 4px;">PWA 核心版本號：<span id="app-version" style="color: #a7f3d0; font-weight: 600;">v1.9.0</span></p>
+        <p style="font-size: 11px; color: #94a3b8; margin-top: 4px;">PWA 核心版本號：<span id="app-version" style="color: #a7f3d0; font-weight: 600;">v1.9.1</span></p>
       </div>
 
       <button class="btn-primary" id="btn-save-settings">儲存設定並套用</button>

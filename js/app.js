@@ -69,6 +69,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnExportJson = document.getElementById('btn-export-json');
   const btnImportJsonTrigger = document.getElementById('btn-import-json-trigger');
   const importJsonInput = document.getElementById('import-json-input');
+  const btnExportSettings = document.getElementById('btn-export-settings');
+  const btnImportSettingsTrigger = document.getElementById('btn-import-settings-trigger');
+  const importSettingsInput = document.getElementById('import-settings-input');
 
   // Platform Modal Elements
   const btnOpenPlatform = document.getElementById('btn-open-platform');
@@ -95,9 +98,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const matcher = new GameMatcher();
   const ocr = new OcrEngine();
 
-  const APP_VERSION = 'v1.9.0';
+  const APP_VERSION = 'v1.9.1';
   const appVersionEl = document.getElementById('app-version');
+  const headerVersionEl = document.getElementById('header-version');
   if (appVersionEl) appVersionEl.textContent = APP_VERSION;
+  if (headerVersionEl) headerVersionEl.textContent = APP_VERSION;
 
   // 1. Register Service Worker for offline PWA
   if ('serviceWorker' in navigator) {
@@ -493,10 +498,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         const item = document.createElement('div');
         item.className = 'related-item';
         item.style.cursor = 'pointer';
+        const notesLine = rel.notes
+          ? `<div style="font-size: 11px; color: #cbd5e1; margin-top: 3px; background: rgba(255,255,255,0.04); padding: 2px 6px; border-radius: 4px; border-left: 2px solid #38bdf8;">📝 備註：${rel.notes}</div>`
+          : '';
         item.innerHTML = `
           <div style="flex: 1; padding-right: 8px;">
             <strong>[${rel.platform}]</strong> ${rel.title_zh || rel.title_jp}
             <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">${rel.title_jp !== rel.title_zh ? rel.title_jp : ''} <span style="color: #64748b;">${rel.catalog || ''}</span></div>
+            ${notesLine}
           </div>
           <span style="color: #38bdf8; font-weight: 600; white-space: nowrap;">No. ${rel.no}</span>
         `;
@@ -527,7 +536,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     resCatalog.textContent = game.catalog || parsed.catalog || '無編號';
     resNo.textContent = `No. ${game.no}`;
     resRegion.textContent = game.region || '日版';
-    resNotes.textContent = game.notes || '無額外備註';
+    resNotes.textContent = `📝 備註：${game.notes || '無額外備註'}`;
   }
 
   // 6. Cart Management
@@ -827,6 +836,81 @@ document.addEventListener('DOMContentLoaded', async () => {
     reader.readAsText(file);
     importJsonInput.value = '';
   });
+
+  // 匯出系統設定檔 (含 API Key / Umi-OCR 網址 / 偏好引擎 / 感官回饋)
+  if (btnExportSettings) {
+    btnExportSettings.addEventListener('click', () => {
+      const settingsData = {
+        type: 'game_scanner_settings',
+        version: APP_VERSION,
+        exported_at: new Date().toISOString(),
+        preferred_engine: selectEngine ? selectEngine.value : ocr.preferredEngine,
+        gemini_api_key: inputGeminiKey ? inputGeminiKey.value.trim() : ocr.geminiApiKey,
+        umi_ocr_url: inputUmiUrl ? inputUmiUrl.value.trim() : ocr.umiOcrUrl,
+        github_sync_url: inputGithubUrl ? (inputGithubUrl.value.trim() || DEFAULT_GITHUB_URL) : currentGithubUrl,
+        vibration_enabled: checkVibration ? checkVibration.checked : vibrationEnabled,
+        sound_enabled: checkSound ? checkSound.checked : soundEnabled
+      };
+      const blob = new Blob([JSON.stringify(settingsData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `scanner_settings_${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  // 匯入系統設定檔
+  if (btnImportSettingsTrigger && importSettingsInput) {
+    btnImportSettingsTrigger.addEventListener('click', () => importSettingsInput.click());
+    importSettingsInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const s = JSON.parse(event.target.result);
+          if (typeof s !== 'object' || s === null || (s.games && Array.isArray(s.games))) {
+            throw new Error('此檔案為遊戲資料庫而非系統設定檔，請使用上方「匯入本機 JSON」按鈕。');
+          }
+          if (s.preferred_engine) {
+            ocr.setPreferredEngine(s.preferred_engine);
+            if (selectEngine) selectEngine.value = s.preferred_engine;
+          }
+          if (typeof s.gemini_api_key === 'string') {
+            ocr.setGeminiApiKey(s.gemini_api_key);
+            if (inputGeminiKey) inputGeminiKey.value = s.gemini_api_key;
+          }
+          if (typeof s.umi_ocr_url === 'string') {
+            ocr.setUmiOcrUrl(s.umi_ocr_url);
+            if (inputUmiUrl) inputUmiUrl.value = s.umi_ocr_url;
+          }
+          if (typeof s.github_sync_url === 'string' && s.github_sync_url.trim()) {
+            currentGithubUrl = s.github_sync_url.trim();
+            localStorage.setItem('github_sync_url', currentGithubUrl);
+            if (inputGithubUrl) inputGithubUrl.value = currentGithubUrl;
+          }
+          if (typeof s.vibration_enabled === 'boolean') {
+            vibrationEnabled = s.vibration_enabled;
+            localStorage.setItem('vibration_enabled', vibrationEnabled);
+            if (checkVibration) checkVibration.checked = vibrationEnabled;
+          }
+          if (typeof s.sound_enabled === 'boolean') {
+            soundEnabled = s.sound_enabled;
+            localStorage.setItem('sound_enabled', soundEnabled);
+            if (checkSound) checkSound.checked = soundEnabled;
+            btnSound.textContent = soundEnabled ? '🔔' : '🔕';
+          }
+          alert('🎉 系統設定檔匯入成功，並已立即套用！');
+        } catch (err) {
+          alert('設定檔匯入失敗：' + err.message);
+        }
+      };
+      reader.readAsText(file);
+      importSettingsInput.value = '';
+    });
+  }
 
   btnSaveSettings.addEventListener('click', () => {
     ocr.setPreferredEngine(selectEngine.value);
