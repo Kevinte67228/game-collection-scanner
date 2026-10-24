@@ -19,6 +19,16 @@ class GameMatcher {
     this.titleMap.clear();
 
     for (const g of this.games) {
+      // 0. 預先計算並快取正規化與清理後字串，避免每次搜尋重複執行數萬次 Regex
+      g._cleanJp = (g.title_jp || '').toLowerCase().replace(/[^一-龠ぁ-ゔァ-ヴーa-zA-Z0-9\u4e00-\u9fa5]/g, '');
+      g._cleanZh = (g.title_zh || '').toLowerCase().replace(/[^一-龠ぁ-ゔァ-ヴーa-zA-Z0-9\u4e00-\u9fa5]/g, '');
+      g._cleanEn = (g.title_en || '').toLowerCase().replace(/[^一-龠ぁ-ゔァ-ヴーa-zA-Z0-9\u4e00-\u9fa5]/g, '');
+      g._normJp = this.normalize(g.title_jp);
+      g._normZh = this.normalize(g.title_zh);
+      g._normEn = this.normalize(g.title_en);
+      g._normTitle = this.normalize(g.title_jp || g.title_zh || g.title_en);
+      g._isBook = this.isBookOrGuide(g.platform);
+
       // 1. Index catalogs
       if (g.catalogs_clean && g.catalogs_clean.length > 0) {
         for (const cat of g.catalogs_clean) {
@@ -40,7 +50,7 @@ class GameMatcher {
       }
 
       // 2. Index simple title
-      const normTitle = this.normalize(g.title_jp || g.title_zh || g.title_en);
+      const normTitle = g._normTitle;
       if (normTitle) {
         if (!this.titleMap.has(normTitle)) {
           this.titleMap.set(normTitle, []);
@@ -117,14 +127,17 @@ class GameMatcher {
             ? matches[0] 
             : (matches.find(m => m.platform === targetPlatform) || matches[0]);
 
+          const isSamePlat = (targetPlatform === 'ALL' || exact.platform === targetPlatform);
           return {
-            status: 'OWNED',
+            status: isSamePlat ? 'OWNED' : 'CROSS_PLATFORM',
             type: 'EXACT_CATALOG',
             confidence: 1.0,
             matchedCatalog: cat,
             game: exact,
-            relatedGames: this.findRelated(exact),
-            message: `【已收藏】商品編號 ${exact.catalog} 完全符合！`
+            relatedGames: this.findRelated(exact, text, matches),
+            message: isSamePlat
+              ? `【已收藏】商品編號 ${exact.catalog} 完全符合！`
+              : `⚠️【跨平台提醒】您已收藏此編號的【${exact.platform}】版（${exact.catalog}）！`
           };
         }
       }
@@ -137,18 +150,28 @@ class GameMatcher {
       const nums = numMatch[1];
       if (this.numericCatalogMap.has(nums)) {
         const candidates = this.numericCatalogMap.get(nums);
-        // 如果候選人只有 1 款，或是當前平台只有 1 款
-        const filtered = targetPlatform === 'ALL' ? candidates : candidates.filter(c => c.platform === targetPlatform);
-        if (filtered.length === 1) {
-          const game = filtered[0];
+        const samePlatCandidates = targetPlatform === 'ALL' ? candidates : candidates.filter(c => c.platform === targetPlatform);
+        if (samePlatCandidates.length === 1) {
+          const game = samePlatCandidates[0];
           return {
             status: 'OWNED',
             type: 'NUMERIC_CATALOG',
             confidence: 0.9,
             matchedCatalog: nums,
             game: game,
-            relatedGames: this.findRelated(game),
+            relatedGames: this.findRelated(game, text, candidates),
             message: `【已收藏】依編號數字 ${nums} 命中 ${game.catalog}！`
+          };
+        } else if (targetPlatform !== 'ALL' && samePlatCandidates.length === 0 && candidates.length === 1) {
+          const game = candidates[0];
+          return {
+            status: 'CROSS_PLATFORM',
+            type: 'NUMERIC_CATALOG_CROSS',
+            confidence: 0.88,
+            matchedCatalog: nums,
+            game: game,
+            relatedGames: this.findRelated(game, text, candidates),
+            message: `⚠️【跨平台提醒】依編號數字 ${nums} 命中【${game.platform}】版（${game.catalog}）！`
           };
         }
       }
@@ -165,13 +188,9 @@ class GameMatcher {
       const candidates = [];
 
       for (const game of (this.gamesSortedByLength || this.games)) {
-        if (targetPlatform !== 'ALL' && game.platform !== targetPlatform) {
-          continue;
-        }
-
-        const gameTitleJp = (game.title_jp || '').toLowerCase().replace(/[^一-龠ぁ-ゔァ-ヴーa-zA-Z0-9\u4e00-\u9fa5]/g, '');
-        const gameTitleZh = (game.title_zh || '').toLowerCase().replace(/[^一-龠ぁ-ゔァ-ヴーa-zA-Z0-9\u4e00-\u9fa5]/g, '');
-        const gameTitleEn = (game.title_en || '').toLowerCase().replace(/[^一-龠ぁ-ゔァ-ヴーa-zA-Z0-9\u4e00-\u9fa5]/g, '');
+        const gameTitleJp = game._cleanJp ?? '';
+        const gameTitleZh = game._cleanZh ?? '';
+        const gameTitleEn = game._cleanEn ?? '';
 
         // 缺頭容錯：OCR直排首字常誤辨，嘗試去掉前1~2字仍能命中
         const jpSuffix1 = gameTitleJp.length >= 5 ? gameTitleJp.slice(1) : '';
@@ -181,7 +200,7 @@ class GameMatcher {
 
         // 計算匹配類型與吻合度
         // 1: 完全相等 (Exact Match)
-        // 2: 遊戲標題是以輸入文字為開頭 (Prefix match, 如輸入 "天地を喰らうII"，遊戲是 "天地を喰らうII 諸葛孔明伝") -> 高精準鎖定續作或完整名稱
+        // 2: 遊戲標題是以輸入文字為開頭 (Prefix match, 如輸入 "天地を喰らうII"，遊戲是 "天地を喰らうII 諸葛孔明伝")
         // 3: 輸入文字是以該遊戲標題為開頭 (Prefix match, 如輸入 "天地を喰らう 必勝攻略法"，遊戲是 "天地を喰らう")
         // 4: 一般包含 (Substring)
         // 5: 缺頭容錯
@@ -218,18 +237,20 @@ class GameMatcher {
         }
 
         if (matchRank > 0) {
-          // 標記是否為攻略本或書籍 (遊戲本體優先度高於書籍)
-          const isBook = this.isBookOrGuide(game.platform);
-          candidates.push({ game, matchRank, isBook });
+          const isSamePlat = (targetPlatform === 'ALL' || game.platform === targetPlatform);
+          const isBook = game._isBook ?? this.isBookOrGuide(game.platform);
+          candidates.push({ game, matchRank, isSamePlat, isBook });
         }
       }
 
       if (candidates.length > 0) {
         // 排序規則：
-        // 1. 完全相等 (matchRank=1) 優先於 開頭前綴匹配 (matchRank=2, 3) 優先於 一般包含 (matchRank=4, 5)
-        // 2. 當指定 ALL 時，遊戲本體 (!isBook) 優先於 攻略本/書籍 (isBook)
-        // 3. 在同一等級中，標題長度與輸入字數最接近者優先 (差異最小)
+        // 1. 若有指定特定平台，符合該平台的項目 (isSamePlat) 優先於跨平台項目
+        // 2. 完全相等 (matchRank=1) 優先於 開頭前綴匹配 (matchRank=2, 3) 優先於 一般包含 (matchRank=4, 5)
+        // 3. 遊戲本體 (!isBook) 優先於 攻略本/書籍 (isBook)
+        // 4. 在同一等級中，標題長度與輸入字數最接近者優先 (差異最小)
         candidates.sort((a, b) => {
+          if (a.isSamePlat !== b.isSamePlat) return a.isSamePlat ? -1 : 1;
           if (a.matchRank !== b.matchRank) return a.matchRank - b.matchRank;
           if (a.isBook !== b.isBook) return a.isBook ? 1 : -1;
           const lenDiffA = Math.abs((a.game.title_jp?.length || 0) - cleanJp.length);
@@ -237,15 +258,29 @@ class GameMatcher {
           return lenDiffA - lenDiffB;
         });
 
-        const bestGame = candidates[0].game;
-        // 將候選名單與搜尋字串傳入 findRelated，確保同樣包含關鍵字的作品（如天地無用、天地を喰らう）都能在下方清單列出
+        const best = candidates[0];
+        const bestGame = best.game;
+        // 將候選名單與搜尋字串傳入 findRelated，確保同樣包含關鍵字的作品都能在下方清單列出
         const candidateGames = candidates.map(c => c.game);
         const related = this.findRelated(bestGame, text, candidateGames);
         const displayMatchTitle = bestGame.title_zh || bestGame.title_jp;
+
+        if (!best.isSamePlat) {
+          return {
+            status: 'CROSS_PLATFORM',
+            type: 'SUBSTRING_TITLE_CROSS',
+            confidence: best.matchRank === 1 ? 0.95 : 0.85,
+            matchedCatalog: bestGame.catalog,
+            game: bestGame,
+            relatedGames: related,
+            message: `⚠️【跨平台提醒】未在 ${targetPlatform} 找到，但您已收藏【${bestGame.platform}】版《${displayMatchTitle}》！`
+          };
+        }
+
         return {
           status: 'OWNED',
           type: 'SUBSTRING_TITLE',
-          confidence: candidates[0].matchRank === 1 ? 0.98 : 0.88,
+          confidence: best.matchRank === 1 ? 0.98 : 0.88,
           matchedCatalog: bestGame.catalog,
           game: bestGame,
           relatedGames: related,
@@ -332,8 +367,8 @@ class GameMatcher {
    */
   findRelated(game, searchQuery = '', candidateList = []) {
     if (!game) return [];
-    const baseTitle = this.normalize(game.title_jp || game.title_zh || game.title_en);
-    const normZh = this.normalize(game.title_zh);
+    const baseTitle = game._normTitle ?? this.normalize(game.title_jp || game.title_zh || game.title_en);
+    const normZh = game._normZh ?? this.normalize(game.title_zh);
     const normQuery = this.normalize(searchQuery);
 
     const scored = [];
@@ -347,7 +382,7 @@ class GameMatcher {
           scored.push({
             game: cand,
             priority: 2,
-            isBook: this.isBookOrGuide(cand.platform)
+            isBook: cand._isBook ?? this.isBookOrGuide(cand.platform)
           });
         }
       }
@@ -357,10 +392,10 @@ class GameMatcher {
     for (const g of this.games) {
       if (seenIds.has(g.id)) continue;
 
-      const otherJp = this.normalize(g.title_jp);
-      const otherZh = this.normalize(g.title_zh);
-      const otherEn = this.normalize(g.title_en);
-      const otherTitle = this.normalize(g.title_jp || g.title_zh || g.title_en);
+      const otherJp = g._normJp ?? '';
+      const otherZh = g._normZh ?? '';
+      const otherEn = g._normEn ?? '';
+      const otherTitle = g._normTitle ?? '';
 
       // (A) 系列作品或跨平台版本 (標題高度交集或繁中譯名完全相同)
       const hasSeriesOverlap = (baseTitle && otherTitle && (otherTitle.includes(baseTitle) || baseTitle.includes(otherTitle)));
@@ -378,7 +413,7 @@ class GameMatcher {
         scored.push({
           game: g,
           priority,
-          isBook: this.isBookOrGuide(g.platform)
+          isBook: g._isBook ?? this.isBookOrGuide(g.platform)
         });
       }
     }

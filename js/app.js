@@ -95,6 +95,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const matcher = new GameMatcher();
   const ocr = new OcrEngine();
 
+  const APP_VERSION = 'v1.9.0';
+  const appVersionEl = document.getElementById('app-version');
+  if (appVersionEl) appVersionEl.textContent = APP_VERSION;
+
   // 1. Register Service Worker for offline PWA
   if ('serviceWorker' in navigator) {
     try {
@@ -105,27 +109,43 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // 2. Load Games Database (Cache-First + GitHub Sync)
+  // 2. Load Games Database (Smart Comparison between localStorage & bundled data/games.json)
   async function loadDatabase() {
-    let loadedData = null;
+    let cachedData = null;
+    let bundledData = null;
     const cachedCustom = localStorage.getItem('games_db_custom');
 
     if (cachedCustom) {
       try {
-        loadedData = JSON.parse(cachedCustom);
-        console.log('[App] Loaded database from localStorage cache.');
+        cachedData = JSON.parse(cachedCustom);
       } catch (e) {
-        console.warn('[App] LocalStorage cache corrupted, fall back to local file.');
+        console.warn('[App] LocalStorage cache corrupted, ignoring.');
       }
     }
 
-    if (!loadedData) {
-      try {
-        const res = await fetch('data/games.json');
-        loadedData = await res.json();
-        console.log('[App] Loaded database from bundled data/games.json.');
-      } catch (err) {
-        console.error('[App] Failed to load data/games.json:', err);
+    try {
+      const res = await fetch('data/games.json');
+      if (res.ok) {
+        bundledData = await res.json();
+      }
+    } catch (err) {
+      console.warn('[App] Failed to fetch data/games.json:', err);
+    }
+
+    // 智慧比對：自動挑選時間戳記 (generated_at) 較新的版本，避免舊的 localStorage 快取蓋掉新隨附資料庫
+    let loadedData = bundledData || cachedData;
+    if (cachedData && bundledData) {
+      const timeCached = cachedData.generated_at || '';
+      const timeBundled = bundledData.generated_at || '';
+      if (timeCached > timeBundled) {
+        loadedData = cachedData;
+        console.log('[App] Using newer localStorage database:', timeCached);
+      } else {
+        loadedData = bundledData;
+        console.log('[App] Using newer bundled data/games.json:', timeBundled);
+        try {
+          localStorage.setItem('games_db_custom', JSON.stringify(bundledData));
+        } catch (e) {}
       }
     }
 
@@ -134,8 +154,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else {
       dbBadge.textContent = '載入失敗';
     }
-
-    // 僅在初次無任何資料時提示同步，避免每次開啟皆在背景大量下載造成手機主線程卡死
   }
 
   let allPlatforms = [];
@@ -144,6 +162,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     currentPlatform = val;
     if (currentPlatformText) currentPlatformText.textContent = display.replace('  ✓', '');
     if (platformModal) platformModal.classList.add('hidden');
+
+    // 若搜尋框或結果區已有查詢內容，切換平台時立即自動重新比對
+    const activeSearch = searchInput ? searchInput.value.trim() : '';
+    const activeOcr = (resultSheet && resultSheet.classList.contains('open') && editOcrText) ? editOcrText.value.trim() : '';
+    const queryToReMatch = activeSearch || activeOcr;
+    if (queryToReMatch) {
+      const matchResult = matcher.match(queryToReMatch, currentPlatform);
+      displayResult(matchResult);
+    }
   }
 
   function renderPlatformList(filterText = '') {
@@ -473,10 +500,15 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
           <span style="color: #38bdf8; font-weight: 600; white-space: nowrap;">No. ${rel.no}</span>
         `;
-        // 點擊相關版本可直接切換檢視該款卡片
+        // 點擊相關版本可直接切換檢視該款卡片，並同步更新頂部橫幅狀態
         item.addEventListener('click', () => {
           fillGameCard(rel);
-          lastScannedItem = { ...rel, isOwned: true };
+          const isSamePlat = (currentPlatform === 'ALL' || rel.platform === currentPlatform);
+          statusBanner.className = 'status-banner ' + (isSamePlat ? 'owned' : 'cross');
+          statusIcon.textContent = isSamePlat ? '🔴' : '🟡';
+          statusTitle.textContent = isSamePlat ? '🔴【已收藏】重複注意！' : '🟡【跨平台已有】提醒';
+          statusDesc.textContent = `【已收藏】《${rel.title_zh || rel.title_jp}》(${rel.platform} · No.${rel.no})`;
+          lastScannedItem = { ...rel, isOwned: isSamePlat };
           resultSheet.scrollTo({ top: 0, behavior: 'smooth' });
         });
         relatedList.appendChild(item);
@@ -593,14 +625,40 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // Photo Upload
+  // Photo Upload (含自動等比壓縮至長邊 <= 1600px，避免手機千萬畫素原圖上傳過慢或逾時)
+  function compressImageDataUrl(rawDataUrl, maxDim = 1600) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const w = img.width;
+        const h = img.height;
+        if (w <= maxDim && h <= maxDim) {
+          resolve(rawDataUrl);
+          return;
+        }
+        const scale = maxDim / Math.max(w, h);
+        const targetW = Math.round(w * scale);
+        const targetH = Math.round(h * scale);
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = targetW;
+        offCanvas.height = targetH;
+        const ctx = offCanvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, targetW, targetH);
+        resolve(offCanvas.toDataURL('image/jpeg', 0.9));
+      };
+      img.onerror = () => resolve(rawDataUrl);
+      img.src = rawDataUrl;
+    });
+  }
+
   btnUpload.addEventListener('click', () => fileInput.click());
   fileInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async (event) => {
-      await processImage(event.target.result);
+      const compressedDataUrl = await compressImageDataUrl(event.target.result, 1600);
+      await processImage(compressedDataUrl);
     };
     reader.readAsDataURL(file);
     fileInput.value = '';
